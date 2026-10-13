@@ -1,0 +1,80 @@
+# Talent 360i on one host: pilot / UAT scale (a few thousand users).
+#
+#   cp deploy/.env.example deploy/.env      # fill in the secrets and the LLM key
+#   docker compose up --build               # then open https://localhost:8443
+#
+# Services share one image. `init` builds the reference data and demo accounts
+# once (idempotent), then the API, portal and worker start. Caddy terminates TLS
+# (a local CA by default), so the portal runs with TALENT360_DEBUG=false:
+# Secure cookies, HSTS and required secrets. The API and the portal's backend
+# calls never leave the internal network.
+#
+# Beyond one host, the same image runs on Azure Container Apps with
+# PostgreSQL in place of the SQLite volume -- see deploy/README.md.
+name: talent360i
+
+x-app: &app
+  image: talent360i:3
+  build: .
+  env_file: deploy/.env
+  volumes:
+    - t360-db:/app/db
+    - t360-logs:/app/logs
+  restart: unless-stopped
+  networks: [internal]
+
+services:
+  init:
+    <<: *app
+    restart: "no"
+    command: ["python", "-c", "import start; start.ensure_data()"]
+
+  api:
+    <<: *app
+    command: ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    depends_on:
+      init: { condition: service_completed_successfully }
+
+  portal:
+    <<: *app
+    working_dir: /app/Talent360i_phase11C_fixed_remote_hybrid
+    command: ["python", "-m", "uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8010", "--workers", "2",
+              "--proxy-headers", "--forwarded-allow-ips", "*"]
+    environment:
+      TALENT360_API_MODE: remote
+      TALENT360_BACKEND_URL: http://api:8000
+      # Plain HTTP only on the private compose network; TLS terminates at Caddy.
+      TALENT360_ALLOW_INSECURE_BACKEND: "true"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8010/healthz', timeout=2)"]
+      interval: 30s
+      timeout: 3s
+      start_period: 30s
+    depends_on:
+      api: { condition: service_healthy }
+
+  worker:
+    <<: *app
+    command: ["python", "scripts/lifecycle_worker.py", "--interval", "300"]
+    healthcheck: { disable: true }
+    depends_on:
+      init: { condition: service_completed_successfully }
+
+  edge:
+    image: caddy:2.8-alpine
+    restart: unless-stopped
+    ports: ["8443:443"]
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+    networks: [internal]
+    depends_on:
+      portal: { condition: service_healthy }
+
+networks:
+  internal: {}
+
+volumes:
+  t360-db: {}
+  t360-logs: {}
+  caddy-data: {}

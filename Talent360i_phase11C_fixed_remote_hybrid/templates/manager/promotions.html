@@ -1,0 +1,39 @@
+{% extends 'base.html' %}
+{% import 'partials/promotion.html' as pr %}
+{% block title %}Promotion Readiness{% endblock %}
+{% block breadcrumb %}Manager / Promotion Readiness{% endblock %}
+{% block content %}
+<div class="page-heading"><div><p class="eyebrow">VERTICAL PROMOTION · READINESS</p><h1>Promotion readiness</h1>
+  <p>Each report's levels against the targets of the next role up in their tower. Validated levels come from assessments you approved. Open a person to request a promotion-readiness assessment or send their profile to leadership.</p></div></div>
+{% if notice %}<div class="flash ok" role="status">{{ notice }}</div>{% endif %}
+
+<div class="metric-grid compact">
+  <article class="metric-card"><p>Ready</p><strong class="green-text">{{ summary.ready }}</strong><small>≥80% of next-role skills at target, all critical skills met</small></article>
+  <article class="metric-card"><p>Developing</p><strong class="orange-text">{{ summary.developing }}</strong><small>50–79% at target</small></article>
+  <article class="metric-card"><p>Not yet</p><strong>{{ summary.not_yet }}</strong><small>Below 50%</small></article>
+  <article class="metric-card"><p>Nominations with leadership</p><strong>{{ rows|selectattr('nomination')|map(attribute='nomination')|selectattr('status', 'equalto', 'pending')|list|length }}</strong><small>Awaiting a leader's decision</small></article>
+</div>
+
+<div class="card table-card">
+  <div class="table-wrap"><table>
+    <thead><tr><th>Employee</th><th>Current → next role</th><th>Readiness</th><th>Validated</th><th>Assessment</th><th>Nomination</th><th></th></tr></thead>
+    <tbody>
+    {% for r in rows %}
+    <tr>
+      <td><b>{{ r.name }}</b><small>{{ r.user_id }}</small></td>
+      <td>{% if r.current %}{{ r.current.role_name }}{% if r.next %} → <b class="inline">{{ r.next.role_name }}</b> <small>{{ r.next.role_grade }}</small>{% endif %}{% else %}<span class="muted">No role on file</span>{% endif %}</td>
+      <td>{% if r.next %}{{ pr.meter(r.pct) }} {{ pr.band_badge(r.band, r.pct) }}{% else %}{{ pr.band_badge(none, none) }}{% endif %}</td>
+      <td>{% if r.next %}{{ r.validated }} / {{ r.total }}{% else %}—{% endif %}</td>
+      <td>{% if r.active %}<span class="badge blue">In progress</span><small>{{ r.active.matched_role_name }}</small>
+          {% elif r.promotion_cycle %}<small>Promotion assessment: {{ r.promotion_cycle.manager_decision|decision_label if r.promotion_cycle.manager_decision else r.promotion_cycle.status|replace('_', ' ') }}</small>
+          {% elif r.last_decided %}<span class="muted">{{ r.last_decided.manager_decision|decision_label }}</span><small>{{ r.last_decided.matched_role_name }}</small>
+          {% else %}<span class="muted">Not yet evaluated</span>{% endif %}</td>
+      <td>{% if r.nomination %}<span class="badge {{ 'blue' if r.nomination.status == 'pending' else 'success' if r.nomination.status == 'approved' else 'danger' }}">{{ 'With leadership' if r.nomination.status == 'pending' else r.nomination.status|title }}</span>{% else %}—{% endif %}</td>
+      <td class="nowrap">{% if r.current %}<a class="text-link" href="/manager/promotions/{{ r.user_id }}">Open profile →</a>{% endif %}</td>
+    </tr>
+    {% else %}<tr><td colspan="7" class="empty">No direct reports.</td></tr>{% endfor %}
+    </tbody>
+  </table></div>
+</div>
+<p class="muted-copy" style="margin-top:10px">The ladder is derived from the role catalogue: the next grade up (B3 → B4 → P3 → P4) in the same tower, preferring the same process group. Readiness is decision support for a conversation, not a promotion decision.</p>
+{% endblock %}

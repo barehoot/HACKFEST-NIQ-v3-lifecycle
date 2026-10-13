@@ -1,0 +1,64 @@
+{# Agent 4 evidence report: per-skill verdict, evidence targets and quotes, each
+   linked to its conversation below. Shared by the manager gate and leader calibration. #}
+{% macro evidence_report(evidence, cycle) %}
+{% set score = cycle.mcq_score %}
+{% if evidence and evidence.integrity_risk in ('medium', 'high') %}
+<div class="flash err integrity-flag" role="alert"><b>⚠ Possible AI-assisted responses — {{ evidence.integrity_risk }} risk</b> in {{ evidence.integrity_flagged }} scenario(s).
+  The evidence score was reduced from {{ evidence.raw_evidence_score_pct }}% to {{ evidence.evidence_score_pct }}%. The signals are listed under each skill; none is proof on its own, so weigh them with the transcript before deciding.</div>
+{% endif %}
+<div class="validation-grid">
+  <div><small>MCQ score</small><strong>{{ score.overall_score_pct ~ '%' if score and score.overall_score_pct is not none else '—' }}</strong></div>
+  <div><small>Evidence score{% if evidence and evidence.raw_evidence_score_pct is defined and evidence.raw_evidence_score_pct != evidence.evidence_score_pct %} (raw {{ evidence.raw_evidence_score_pct }}%){% endif %}</small><strong>{{ evidence.evidence_score_pct ~ '%' if evidence and evidence.evidence_score_pct is not none else '—' }}</strong></div>
+  <div><small>Compatibility</small><strong>{% if evidence and evidence.compatibility_score_pct is not none %}{{ evidence.compatibility_score_pct }}% · {{ (evidence.compatibility_band or '')|replace('--', '—') }}{% else %}—{% endif %}</strong></div>
+</div>
+{% if evidence %}
+<div class="evidence-block"><span class="eyebrow">SIMULATION EVIDENCE</span>
+  {% for result in evidence.evidence_results %}
+  <div class="evidence-skill">
+    <p><b>{{ result.skill }}</b> — <span class="badge {{ 'success' if result.verdict == 'strong_evidence' else 'warning' if result.verdict == 'partial_evidence' else 'danger' }}">{{ result.verdict|replace('_', ' ')|title }}</span>
+      {% if result.probes_used is defined %}<small class="muted"> · {{ result.probes_used }} follow-up(s) asked</small>{% endif %}
+      {% if result.injection_suspected %}<span class="badge danger">Injection attempt flagged</span>{% endif %}
+      {% if result.integrity and result.integrity.risk != 'low' %}<span class="badge {{ 'danger' if result.integrity.risk == 'high' else 'warning' }}">⚠ AI-use risk: {{ result.integrity.risk }} · credit ×{{ result.integrity.penalty_factor }}</span>{% endif %}</p>
+    {% if result.integrity and result.integrity.signals %}
+    <ul class="target-list">{% for sig in result.integrity.signals %}<li class="no">{{ sig }}</li>{% endfor %}</ul>
+    {% endif %}
+    {% if result.targets %}
+    <ul class="target-list">{% for t in result.targets %}<li class="{{ 'yes' if t.evidenced else 'no' }}">{{ t.target }}</li>{% endfor %}</ul>
+    {% endif %}
+    {% if result.quotes %}<p>{% for q in result.quotes %}“{{ q }}” {% endfor %}</p>{% endif %}
+    {% if result.missing_element %}<p><i>Missing: {{ result.missing_element }}</i></p>{% endif %}
+    {% if result.reasoning %}<p class="muted">{{ result.reasoning }}</p>{% endif %}
+    {% if result.question_id %}<a class="text-link conv-jump" href="#conv-{{ result.question_id }}">Read this conversation ↓</a>{% endif %}
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+{% endmacro %}
+
+{# The workplace-simulation conversation, from what the portal saved (see
+   api_client.simulation_conversations), so it shows whether or not Agent 4's
+   report exists. The first scenario starts open. #}
+{% macro conversation(conversations) %}
+{% if conversations %}
+<section class="conv-section" aria-labelledby="conv-heading">
+  <div class="section-heading"><div><h2 id="conv-heading">Simulation conversation</h2>
+    <p>Every scenario as the employee saw it, with each answer and the AI assessor's follow-up questions.</p></div></div>
+  {% for c in conversations %}
+  <details class="conv-scenario" id="conv-{{ c.question_id }}" {{ 'open' if loop.first }}>
+    <summary><span><b>Scenario {{ c.index }}{% if c.title %} · {{ c.title }}{% endif %}</b>
+      <small>{{ c.skill }} · {{ c.responses }} answer{{ 's' if c.responses != 1 }}{% if c.follow_ups %} · {{ c.follow_ups }} follow-up{{ 's' if c.follow_ups != 1 }}{% endif %}</small></span></summary>
+    {% if c.scenario %}<div class="sim-brief"><small>THE SITUATION</small><p>{{ c.scenario }}</p></div>{% endif %}
+    <div class="sim-thread">
+      {% if c.task %}<div class="bubble agent"><small>AI assessor · task</small>{{ c.task }}</div>{% endif %}
+      {% for turn in c.turns %}
+      {% set meta = turn.meta or {} %}
+      <div class="bubble {{ turn.role }}"><small>{{ 'AI assessor · follow-up' if turn.role == 'agent' else 'Employee' }}</small>{{ turn.text }}
+        {% if turn.role == 'candidate' and (meta.paste_chars or meta.active_seconds) %}<span class="meta-flag">{% if meta.paste_chars %}{{ [((100 * meta.paste_chars / ([turn.text|length, 1]|max)))|round|int, 100]|min }}% pasted{% endif %}{% if meta.paste_chars and meta.active_seconds %} · {% endif %}{% if meta.active_seconds %}{{ meta.active_seconds }}s to write{% endif %}</span>{% endif %}</div>
+      {% else %}<p class="muted">No answer recorded for this scenario.</p>{% endfor %}
+    </div>
+    {% if c.end_reason %}<p class="lc-meta">Ended: {{ c.end_reason }}</p>{% endif %}
+  </details>
+  {% endfor %}
+</section>
+{% endif %}
+{% endmacro %}

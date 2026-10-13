@@ -1,0 +1,18 @@
+{% extends 'base.html' %}
+{% block title %}Notifications{% endblock %}
+{% block breadcrumb %}Notifications{% endblock %}
+{% block content %}
+{% set icons = {'evidence': '★', 'evidence_pending': '✉', 'evidence_comment': '💬', 'review': '▤', 'development': '↗', 'probation': 'P',
+                'probation_decision': 'P', 'escalation': '!', 'escalation_resolved': '✓', 'status_change': '◐', 'kudos': '👏', 'job_change': '✎'} %}
+<div class="page-heading"><div><p class="eyebrow">INBOX</p><h1>Notifications</h1>
+  <p>Everything that needs you, in one place. Also delivered by email or Teams when your organisation turns those channels on.</p></div>
+  {% if items|selectattr('read_at', 'none')|list %}<form method="post" action="/notifications/read"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="btn-ghost" type="submit">Mark all read</button></form>{% endif %}</div>
+{% if notice %}<div class="flash ok" role="status">{{ notice }}</div>{% endif %}
+{% if items %}
+<ul class="notif-list">{% for n in items %}
+  <li class="{{ 'unread' if not n.read_at }}"><span class="notif-ico" aria-hidden="true">{{ icons.get(n.kind, '◌') }}</span>
+    <div><b>{{ n.title }}</b><small>{{ n.body }}{{ ' · ' if n.body }}{{ n.created_at[:16]|replace('T', ' ') }} UTC</small></div>
+    {% if n.link %}<form method="post" action="/notifications/{{ n.notification_id }}/open"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="btn-ghost" type="submit">Open →</button></form>{% endif %}</li>
+{% endfor %}</ul>
+{% else %}<div class="lc-empty">You're all caught up.</div>{% endif %}
+{% endblock %}

@@ -1,0 +1,47 @@
+{% extends 'base.html' %}
+{% import 'partials/promotion.html' as pr %}
+{% block title %}Promotion Review{% endblock %}
+{% block breadcrumb %}Leader / Promotions / {{ nomination.employee_name }}{% endblock %}
+{% block content %}
+{% set r = profile.readiness %}
+<div class="page-heading"><div><a class="text-link" href="/leader/promotions">← Back to promotions</a>
+  <p class="eyebrow">PROMOTION NOMINATION</p><h1>{{ nomination.employee_name }}</h1>
+  <p>{{ nomination.from_role_name or '—' }} → <b>{{ nomination.to_role_name }}</b> ({{ nomination.to_role_grade }}) · nominated by {{ nomination.manager_name }} on {{ nomination.created_at[:10] }}</p></div>
+  <span class="badge {{ 'blue' if nomination.status == 'pending' else 'success' if nomination.status == 'approved' else 'danger' }}">{{ 'To review' if nomination.status == 'pending' else nomination.status|title }}</span></div>
+{% if error %}<div class="flash err" role="alert"><b>Not recorded:</b> {{ error }}</div>{% endif %}
+
+<div class="validation-grid">
+  <div><small>Readiness at nomination</small><strong>{{ r.pct }}% · {{ r.band }}</strong></div>
+  <div><small>Readiness today</small><strong>{{ live.pct if live.pct is not none else '—' }}%{% if live.band %} · {{ live.band }}{% endif %}</strong></div>
+  <div><small>Validated skills</small><strong>{{ r.validated }} / {{ r.total }}</strong></div>
+</div>
+{% if r.critical_missed %}<div class="flash err" role="status" style="margin-top:10px"><b>Critical skills below the {{ nomination.to_role_name }} target:</b> {{ r.critical_missed|join(', ') }}</div>{% endif %}
+
+<div class="card validation-card" style="margin-top:12px"><p class="eyebrow">MANAGER'S CASE</p><p>“{{ nomination.manager_note }}”</p></div>
+
+<div class="detail-layout" style="margin-top:12px">
+  <article class="card table-card"><div class="card-toolbar"><div><h2>Readiness for {{ nomination.to_role_name }}</h2><p>Snapshot sent by the manager on {{ profile.snapshot_date }}.</p></div></div>
+    {{ pr.readiness_table(profile.rows, profile.next_role) }}</article>
+  <aside class="detail-sidebar">
+    <div class="card sidebar-box"><p class="eyebrow">CERTIFIED LEVELS</p>{{ pr.certified_list(profile.certified) }}</div>
+    <div class="card sidebar-box">
+      <p class="eyebrow">YOUR DECISION</p>
+      {% if nomination.status == 'pending' %}
+      <form method="post" action="/leader/promotions/{{ nomination.nomination_id }}/decision">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <textarea name="note" rows="4" maxlength="2000" placeholder="Rationale (required to decline) — the manager sees it"></textarea>
+        <div class="assessment-actions" style="padding:10px 0 0;border:0">
+          <button class="button danger-button" name="decision" value="declined" type="submit">Decline</button>
+          <button class="button success-button" name="decision" value="approved" type="submit">Approve promotion</button>
+        </div>
+      </form>
+      <p class="muted-copy"><small>An approval is recorded for HR to action; the employee's job record isn't changed here.</small></p>
+      {% else %}
+      <p>{{ nomination.status|title }} by {{ nomination.leader_name }} on {{ (nomination.decided_at or '')[:10] }}.</p>{% if nomination.leader_note %}<p class="muted-copy">“{{ nomination.leader_note }}”</p>{% endif %}
+      {% endif %}
+    </div>
+  </aside>
+</div>
+
+<article class="card table-card" style="margin-top:12px"><div class="card-toolbar"><div><h2>Assessment history</h2><p>Scores, simulation evidence, AI-use flags and the manager's decision on each assessment. Open Manager Calibration to read a transcript.</p></div></div>{{ pr.history_table(profile.history) }}</article>
+{% endblock %}

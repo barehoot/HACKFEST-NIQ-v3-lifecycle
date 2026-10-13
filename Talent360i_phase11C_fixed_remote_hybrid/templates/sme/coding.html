@@ -1,0 +1,63 @@
+{% extends 'base.html' %}
+{% block title %}Coding Challenges{% endblock %}
+{% block breadcrumb %}SME / Coding Challenges{% endblock %}
+{% block content %}
+<div class="page-heading"><div><p class="eyebrow">SCENARIO SECTION · RESUME-TRIGGERED CODING TASKS</p><h1>Coding challenges</h1>
+  <p>Write a coding problem and the resume keywords that trigger it. When an employee's resume mentions one (e.g. <span class="kw">python</span><span class="kw">sql</span><span class="kw">vba</span>), up to two approved challenges join their workplace simulation. Answers are never run: Agent 4 reviews them against your rubric, and you confirm the score.</p></div></div>
+{% if notice %}<div class="flash ok" role="status">{{ notice }}</div>{% endif %}
+{% if error %}<div class="flash err" role="alert"><b>Not saved:</b> {{ error }}</div>{% endif %}
+
+{% set waiting = attempts|selectattr('review_status', 'equalto', 'pending_review')|list %}
+<section class="lc-section" id="attempts"><article class="lc-card"><h2>Answers to review ({{ waiting|length }} need you · {{ attempts|length }} total)</h2>
+  {% for a in attempts %}
+  <details class="lc-disclosure" style="margin-bottom:10px" {{ 'open' if a.review_status == 'pending_review' and loop.index <= 2 }}>
+    <summary><span>{{ a.employee_name or a.user_id }} · {{ a.title }} <small class="muted">· {{ a.language }} · {{ a.submitted_at[:10] }}</small></span>
+      <span class="sig {{ 'tone-warn' if a.review_status == 'pending_review' else 'tone-good' if a.review_status == 'sme_reviewed' else 'tone-info' }}">{{ {'pending_review': 'Needs SME', 'ai_reviewed': 'AI-reviewed', 'sme_reviewed': 'SME score ' ~ a.sme_score ~ '/5'}[a.review_status] }}</span></summary>
+    <div>
+      <pre class="code">{{ a.code }}</pre>
+      {% if a.paste_chars %}<p class="lc-meta">⚠ {{ a.paste_chars }} characters were pasted into the answer.</p>{% endif %}
+      {% if a.review %}
+        {% if a.review.flags %}<p>{% for f in a.review.flags %}<span class="sig tone-warn" style="margin-right:4px">{{ f|replace('_', ' ') }}</span>{% endfor %}</p>{% endif %}
+        {% if a.review.scores %}<div class="rubric-scores">{% for k, v in a.review.scores.items() %}<div>{{ k|replace('_', ' ')|title }}<b>{{ v }}/5</b></div>{% endfor %}</div>
+          <p style="font-size:12.5px"><span class="ai-tag">Agent 4</span> <b>{{ (a.review.verdict or '')|replace('_', ' ')|title }}</b> · {{ a.review.summary }}</p>
+          {% if a.review.issues %}<p style="font-size:12px"><b>Issues:</b> {{ a.review.issues|join('; ') }}</p>{% endif %}
+        {% else %}<p class="lc-meta">{{ a.review.summary }}</p>{% endif %}
+      {% endif %}
+      <form method="post" action="/sme/coding/attempts/{{ a.attempt_id }}/review" class="lc-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <div class="row"><label>Your score <select name="score">{% for n in range(5, 0, -1) %}<option value="{{ n }}" {{ 'selected' if (a.sme_score or ((a.review or {}).average or 0)|round|int) == n }}>{{ n }}/5</option>{% endfor %}</select></label></div>
+        <label>Note for the manager <input name="note" maxlength="1000" value="{{ a.sme_note or '' }}"></label>
+        <div class="actions"><button class="button" type="submit">{{ 'Update score' if a.sme_score else 'Confirm score' }}</button></div></form>
+    </div>
+  </details>
+  {% else %}<div class="lc-empty">No answers yet.</div>{% endfor %}
+</article></section>
+
+<section class="lc-grid-2 lc-section">
+  <article class="lc-card"><h2>Challenges</h2>
+    {% for c in challenges %}
+    <div style="border:1px solid var(--lc-line);border-radius:12px;padding:12px 14px;margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap"><b>{{ c.title }}</b><span class="badge {{ 'success' if c.status == 'approved' else 'warning' if c.status == 'draft' else '' }}">{{ c.status|title }}</span></div>
+      <p class="lc-meta" style="margin:4px 0">{{ c.language }} · {{ c.difficulty }} · {{ c.time_minutes }} min{% if c.skills %} · {{ c.skills|join(', ') }}{% endif %}</p>
+      <div>{% for k in c.keywords %}<span class="kw">{{ k }}</span>{% endfor %}</div>
+      <p style="font-size:12.5px;white-space:pre-line;margin:6px 0">{{ c.prompt[:280] }}{{ '…' if c.prompt|length > 280 }}</p>
+      <form method="post" action="/sme/coding/{{ c.challenge_id }}/status" class="actions" style="display:flex;gap:8px"><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        {% if c.status != 'approved' %}<button class="button" type="submit" name="status" value="approved">Approve</button>{% endif %}
+        {% if c.status != 'retired' %}<button class="btn-ghost" type="submit" name="status" value="retired">Retire</button>{% endif %}</form>
+    </div>
+    {% else %}<div class="lc-empty">No challenges yet.</div>{% endfor %}
+  </article>
+  <article class="lc-card"><h2>New challenge</h2>
+    <form method="post" action="/sme/coding" class="lc-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <label>Title <input name="title" maxlength="140" required placeholder="e.g. Match bank lines to open invoices"></label>
+      <div class="row"><label>Language <select name="language">{% for l in languages %}<option value="{{ l }}">{{ l|title }}</option>{% endfor %}</select></label>
+        <label>Difficulty <select name="difficulty">{% for d in difficulties %}<option value="{{ d }}" {{ 'selected' if d == 'intermediate' }}>{{ d|title }}</option>{% endfor %}</select></label>
+        <label>Minutes <input type="number" name="time_minutes" value="30" min="5" max="120"></label></div>
+      <label>Resume keywords that trigger it <span class="hint">Comma-separated, e.g. python, pandas, power query</span><input name="keywords" maxlength="300" required></label>
+      <label>Skills it evidences <input name="skills" maxlength="300" placeholder="Comma-separated role skills"></label>
+      <label>Problem statement <textarea name="prompt" maxlength="4000" required></textarea></label>
+      <label>Starter code <textarea class="code" name="starter_code" maxlength="3000" style="min-height:120px"></textarea></label>
+      <label>Rubric <span class="hint">What a good answer does: the reviewer scores against this</span><textarea name="rubric" maxlength="2000" required></textarea></label>
+      <div class="actions"><button class="button" type="submit">Save draft</button></div></form>
+  </article>
+</section>
+{% endblock %}

@@ -1,0 +1,44 @@
+name: security
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test-and-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install pinned dependencies
+        run: pip install -r requirements-dev.txt
+
+      - name: Security + workflow tests
+        run: python -m pytest tests -q
+
+      - name: SAST (bandit)
+        run: bandit -r agents app Talent360i_phase11C_fixed_remote_hybrid scripts start.py -x tests -ll
+
+      - name: Dependency vulnerability scan (SCA)
+        # chromadb advisories are server-API only and accepted in SECURITY.md
+        # (this project never runs the Chroma server); anything else fails the build.
+        run: >-
+          pip-audit -r requirements.txt
+          --ignore-vuln PYSEC-2026-311 --ignore-vuln PYSEC-2026-3813
+          --ignore-vuln PYSEC-2026-3814 --ignore-vuln PYSEC-2026-3815
+
+      - name: Secret scan (TruffleHog)
+        uses: trufflesecurity/trufflehog@main
+        with:
+          extra_args: --only-verified

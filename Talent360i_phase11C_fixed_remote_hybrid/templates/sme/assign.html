@@ -1,0 +1,64 @@
+{% extends 'base.html' %}
+{% block title %}Assign Assessments{% endblock %}
+{% block breadcrumb %}SME / Assign Assessments{% endblock %}
+{% block content %}
+{% set stage_labels = {'pending_sme_setup': 'Waiting for your set-up', 'pending_sme_approval': 'Questions awaiting approval', 'ready_for_assessment': 'Ready to take', 'mcq_submitted': 'Simulation in progress', 'case_study_submitted': 'Submitted', 'pending_manager_approval': 'Manager review', 'manager_approved': 'Approved', 'manager_rejected': 'Sent back'} %}
+{% set r = roster %}
+<div class="page-heading"><div><p class="eyebrow">ASSESSMENT OPS · SME</p><h1>Assign assessments</h1><p>Set up assessments for resume submissions, assign bank-built assessments to employees, and keep the automatic baseline running. You decide the questions and the level; the selection agent proposes a set from the question bank.</p></div>
+  <div class="decision-buttons"><a class="button secondary" href="/scheduler/schedule">Schedule &amp; calendar</a><a class="button secondary" href="/sme/bank">Question bank</a></div></div>
+{% if notice %}<div class="flash ok" role="status">{{ notice }}</div>{% endif %}
+
+<div class="metric-grid compact">
+  <article class="metric-card"><p>Resume submissions</p><strong>{{ r.setup_queue|length }}</strong><small>Waiting for you to set up</small></article>
+  <article class="metric-card"><p>Due an assessment</p><strong>{{ r.eligible }}</strong><small>Not yet evaluated for their role, retake, or re-assessment</small></article>
+  <article class="metric-card"><p>Blocked baselines</p><strong>{{ r.eligible_blocked }}</strong><small>No approved questions for their role</small></article>
+  <article class="metric-card"><p>Assessments in progress</p><strong>{{ r.rows|selectattr('active')|list|length }}</strong><small>Across {{ r.rows|length }} employees</small></article>
+</div>
+
+<div class="card table-card" style="margin-bottom:16px">
+  <div class="card-toolbar"><div><h2>Resume submissions to set up</h2><p>The employee uploaded a resume and Agent 1 matched a role. Choose the questions and level.</p></div></div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Employee</th><th>Matched role</th><th>Resume</th><th>Submitted</th><th></th></tr></thead>
+    <tbody>
+    {% for c in r.setup_queue %}
+    <tr><td><b>{{ c.employee_name }}</b><small>{{ c.user_id }}</small></td><td>{{ c.matched_role_name }}</td><td>{{ c.resume_filename }}</td><td>{{ c.created_at[:10] }}</td>
+      <td><a class="button small-button" href="/sme/assessments/new?cycle={{ c.cycle_id }}">Set up assessment →</a></td></tr>
+    {% else %}<tr><td colspan="5" class="empty">No resume submissions are waiting.</td></tr>{% endfor %}
+    </tbody>
+  </table></div>
+</div>
+
+<article class="card viz-card" style="margin-bottom:16px">
+  <div class="viz-head"><div><h2>Automatic assessment</h2><p>Anyone with no assessment in progress gets one automatically, built from up to 8 SME-approved bank questions (questions they have already seen go last): when they have never been evaluated in Talent360i for the role they hold — dataset levels alone don't count — when a manager sent their last one back to retake, or when they have finished the skill-gap training a manager assigned (the re-assessment targets those skills). It runs when they open their dashboard, or for everyone now.</p></div>
+    <form method="post" action="/sme/assign/auto"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="button" type="submit">Run auto-assignment now</button></form></div>
+  {% if r.eligible_blocked %}<p class="muted-copy" style="font-size:11.5px">{{ r.eligible_blocked }} employee(s) can't be auto-assigned yet because their role has no approved questions — generate and approve some from <a class="text-link" href="/sme/generate">AI Generation</a>.</p>{% endif %}
+</article>
+
+<div class="section-heading"><div><h2>Employees</h2><p>Who you can assign, and what. Pick a role to assign a bank-built assessment to several people at once.</p></div></div>
+<nav class="pill-row" aria-label="Role filter">
+  <a href="/sme/assign" class="{{ 'selected' if not selected_role }}">All roles</a>
+  {% for role in roles %}<a href="/sme/assign?role={{ role.role_id|urlencode }}" class="{{ 'selected' if role.role_id == selected_role }}">{{ role.role_name }}</a>{% endfor %}
+</nav>
+<div class="card table-card"><div class="table-wrap"><table>
+  <thead><tr><th>Employee</th><th>Role</th><th>TNI baseline</th><th>Current assessment</th><th>Bank questions</th><th>What you can do</th></tr></thead>
+  <tbody>
+  {% for e in r.rows if not selected_role or e.role_id == selected_role %}
+  <tr>
+    <td><b>{{ e.name }}</b><small>{{ e.user_id }} · {{ e.manager }}</small></td>
+    <td>{{ e.role_name or '—' }}</td>
+    <td>{% if e.total %}{{ e.assessed }} / {{ e.total }} skills assessed{% if e.not_assessed %}<small>{{ e.not_assessed }} not yet assessed</small>{% endif %}{% else %}<span class="muted">No TNI baseline</span>{% endif %}</td>
+    <td>{% if e.stage %}<span class="badge {{ 'warning' if e.active else 'success' }}">{{ stage_labels.get(e.stage, e.stage) }}</span><small>{{ e.source }}</small>{% else %}<span class="muted">None</span>{% endif %}</td>
+    <td>{{ e.bank }}</td>
+    <td>
+      {% if e.stage == 'pending_sme_setup' %}<a class="text-link" href="/sme/assessments/new?cycle={{ e.cycle_id }}">Set up →</a>
+      {% elif e.active %}<span class="muted">In progress</span>
+      {% elif e.role_id and e.bank %}<a class="text-link" href="/sme/assessments/new?role={{ e.role_id|urlencode }}&employee={{ e.user_id|urlencode }}">{{ 'Assign baseline' if e.needs_baseline else 'Assign assessment' }} →</a>{% if e.needs_baseline %}<small>Due: {{ e.need_source or e.need_reason }}</small>{% endif %}
+      {% elif e.role_id %}<a class="text-link" href="/sme/generate?role={{ e.role_id|urlencode }}">Generate questions first →</a>
+      {% else %}<span class="muted">No role on file</span>{% endif %}
+    </td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table></div></div>
+{% if selected_role %}<p style="margin-top:12px"><a class="button" href="/sme/assessments/new?role={{ selected_role|urlencode }}">Build an assessment for this role →</a></p>{% endif %}
+{% endblock %}

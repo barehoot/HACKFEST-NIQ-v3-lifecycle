@@ -1,0 +1,22 @@
+{% extends 'base.html' %}
+{% block title %}HR Attributes{% endblock %}
+{% block breadcrumb %}{{ current_user.role_label }} / HR Attributes{% endblock %}
+{% block content %}
+<div class="page-heading"><div><p class="eyebrow">PEOPLE DATA · WORKDAY-SYNCED IN PRODUCTION</p><h1>Department & hire date</h1>
+  <p>Department drives leader scope; hire date starts six-month probation tracking automatically. In production these come from the nightly HR sync, not this form.</p></div></div>
+{% if notice %}<div class="flash ok" role="status">{{ notice }}</div>{% endif %}
+<form class="lc-filters" method="get" action="/org/people" role="search"><input type="search" name="q" value="{{ q }}" placeholder="Search name or ID" maxlength="60"><button class="btn-ghost" type="submit">Search</button>
+  <span class="lc-meta">{{ total }} employee(s){% if total > employees|length %}, showing the first {{ employees|length }}: search to narrow{% endif %}</span></form>
+<div class="card table-card"><div class="table-wrap"><table><thead><tr><th>Employee</th><th>Department</th><th>Hire date</th><th>Location</th><th></th></tr></thead><tbody>
+{% for e in employees %}{% set p = profiles.get(e.user_id, {}) %}
+<tr><td><b>{{ e.full_name }}</b><small>{{ e.user_id }} · {{ e.job_title or '' }}</small></td>
+  <td colspan="4"><form method="post" action="/org/people/{{ e.user_id }}" class="lc-form" style="grid-template-columns: 1.2fr 1fr 1fr auto; display:grid; gap:8px; align-items:end">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label class="visually-hidden" for="d-{{ e.user_id }}">Department</label>
+    <select id="d-{{ e.user_id }}" name="dept_id"><option value="">—</option>{% for d in departments %}<option value="{{ d.dept_id }}" {{ 'selected' if p.dept_id == d.dept_id }}>{{ d.name }}</option>{% endfor %}</select>
+    <label class="visually-hidden" for="h-{{ e.user_id }}">Hire date</label><input id="h-{{ e.user_id }}" type="date" name="hire_date" value="{{ p.hire_date or '' }}">
+    <label class="visually-hidden" for="l-{{ e.user_id }}">Location</label><input id="l-{{ e.user_id }}" name="location" value="{{ p.location or '' }}" maxlength="80" placeholder="Location">
+    <button class="btn-ghost" type="submit">Save</button></form></td></tr>
+{% else %}<tr><td colspan="5" class="empty">No employees.</td></tr>{% endfor %}
+</tbody></table></div></div>
+{% endblock %}

@@ -1,0 +1,62 @@
+{% extends 'base.html' %}
+{% block title %}Review {{ question.question_id }}{% endblock %}
+{% block breadcrumb %}SME / Review Queue / {{ question.question_id }}{% endblock %}
+{% block content %}
+<div class="page-heading"><div><p class="eyebrow">SME REVIEW GATE · {{ question.source_label|upper }}</p><h1>{{ question.role_name }}</h1><p>{% if question.source == 'cycle' %}Generated for {{ question.employee_name }}'s assessment. {% endif %}Verify the proposal, then explicitly approve or reject it.</p></div>
+<span class="badge {{ 'success' if question.sme_status == 'approved' else 'danger' if question.sme_status == 'rejected' else 'warning' }}">{{ question.sme_status|title }}</span></div>
+
+<div class="review-layout">
+<section>
+<article class="card question-review">
+<div class="question-detail-meta">
+  <div><small>SKILL</small><b>{{ question.skill }}</b></div>
+  <div><small>TARGET LEVEL</small><b class="level">{{ question.level_label }}</b></div>
+  <div><small>{{ 'DIFFICULTY' if question.source == 'cycle' else 'TYPE' }}</small><b>{{ question.difficulty if question.source == 'cycle' else question.question_type_label }}</b></div>
+  <div><small>CRITICAL SKILL</small><b>{{ 'Yes' if question.is_critical else 'No' }}</b></div>
+</div>
+<hr>
+<p class="eyebrow">QUESTION</p><h2>{{ question.question_text }}</h2>
+{% if question.options %}
+<div class="options static-options">
+  {% for letter, option in question.options %}
+  <div class="option {{ 'correct' if question.correct_option == letter else '' }}"><span class="option-letter">{{ letter }}</span><span>{{ option }}</span>{% if question.correct_option == letter %}<span class="correct-label">Correct answer</span>{% endif %}</div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="notice-card">Open-response item — scored against the A3 rubric, no answer options.</div>
+{% endif %}
+{% if question.rationale %}<div class="source-reference"><b>Rationale</b><p>{{ question.rationale }}</p></div>{% endif %}
+{% if question.sop_reference %}<div class="source-reference"><b>Grounding</b><p>{{ question.sop_reference }}</p></div>{% endif %}
+{% if question.is_synthetic_grounding %}<div class="notice-card" style="margin-top:12px">Grounded on synthetic placeholder data — not yet SME-validated grounding.</div>{% endif %}
+</article>
+</section>
+
+<aside class="review-side">
+<article class="card ai-check">
+  <p class="eyebrow purple-text">✦ A2 SELF CHECK</p>
+  <ul>
+    {% for key, check in question.self_check.items() %}
+    <li class="{{ 'check-fail' if check.verdict != 'pass' else '' }}">{{ key|replace('_',' ')|title }}: {{ check.score }}/5 {% if check.verdict != 'pass' %}— failed{% endif %}</li>
+    {% else %}<li>No self-check recorded.</li>
+    {% endfor %}
+  </ul>
+  <div class="confidence-line"><span>AI confidence</span><b>{{ ((question.ai_confidence * 100)|round|int ~ '%') if question.ai_confidence else '—' }}</b></div>
+  <div class="confidence-line"><span>Generation attempts</span><b>{{ question.generation_attempts }}</b></div>
+</article>
+
+<article class="card action-card">
+  <h2>SME Decision</h2>
+  <p>{% if question.source == 'cycle' %}The question only becomes assessable once approved. The employee's assessment unlocks once every question for their cycle is approved.{% else %}Approved question-bank items count toward the scheduler's launch gate for blueprint BP-1001.{% endif %}</p>
+  {% if question.sme_status == 'pending' %}
+  <div class="decision-buttons">
+    <form method="post" action="/sme/questions/{{ question.question_id|urlencode }}/approve"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="button success-button" type="submit">Approve</button></form>
+    <form method="post" action="/sme/questions/{{ question.question_id|urlencode }}/reject"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="button danger-button" type="submit">Reject</button></form>
+  </div>
+  {% else %}
+  <p class="decision-note">This question is {{ question.sme_status }}{% if question.reviewed_at %} ({{ question.reviewed_at[:10] }}){% endif %}.</p>
+  <a class="text-link" href="/sme/questions">← Back to review queue</a>
+  {% endif %}
+</article>
+</aside>
+</div>
+{% endblock %}

@@ -1,0 +1,104 @@
+{% extends 'base.html' %}
+{% import 'people/_macros.html' as pm %}
+{% block title %}My Performance{% endblock %}
+{% block breadcrumb %}Employee / My Performance{% endblock %}
+{% block content %}
+<div class="page-heading"><div><p class="eyebrow">MY PERFORMANCE · TRANSPARENT BY DESIGN</p><h1>Where I stand</h1>
+  <p>The same factors your manager sees, the evidence shared with you, your reviews and your development plan. Nothing here is hidden from you, and only evidence you can see counts.</p></div></div>
+{% if notice %}<div class="flash ok" role="status">{{ notice }}</div>{% endif %}
+{% if error %}<div class="flash err" role="alert">{{ error }}</div>{% endif %}
+
+<section class="profile-hero tone-{{ status.tone }}">
+  <span class="pc-avatar" aria-hidden="true">{{ current_user.initials }}</span>
+  <div><h1 style="font-size:20px">{{ status.band }}</h1>
+    <p>{% if status.band == 'Not enough data' %}There isn't enough recorded yet to calculate a status: it needs at least two of skills, review, assessment, evidence and development.
+       {% else %}Calculated from {{ status.factors|length }} factor(s). It is a starting point for conversations with your manager, not a judgement.{% endif %}</p>
+    <div style="display:flex;flex-wrap:wrap;gap:6px">{% for s in status.signals if s.key in ('probation', 'probation_decision', 'promotion_ready') %}<span class="sig tone-{{ s.tone }}">{{ s.label }}</span>{% endfor %}</div></div>
+  {{ pm.score_ring(status.score, status.tone, 'lg') }}
+</section>
+
+<nav class="profile-tabs" aria-label="Sections">
+  <a href="#factors">How it's calculated</a><a href="#development">My actions</a><a href="#reviews">Reviews</a><a href="#evidence">Evidence</a>
+  {% if probation %}<a href="#probation">Probation</a>{% endif %}<a href="#pulse">Weekly check-in</a><a href="#kudos">Recognise a colleague</a>
+</nav>
+
+<section id="factors" class="lc-section lc-grid-2">
+  <article class="lc-card tone-{{ status.tone }}"><h2>How my status is calculated</h2>
+    <p class="lc-sub">Skills 30% · review 25% · assessment 20% · evidence 15% · development 10%. Factors with no data are left out rather than counted against you.</p>
+    {{ pm.factor_bars(status.factors, status.tone, status.missing) }}</article>
+  <article class="lc-card"><h2>What moves it</h2>
+    <ul class="rec-list">
+      <li class="employee"><span>1</span><div><b>Close a skill gap</b><small>Finish the training and practice actions in your plan; your manager certifies the level through an assessment.</small></div></li>
+      <li class="employee"><span>2</span><div><b>Keep your plan moving</b><small>Mark actions in progress and done. Overdue actions pull the development factor down.</small></div></li>
+      <li class="employee"><span>3</span><div><b>Add your side</b><small>Comment on any evidence item or review you see differently. Your manager is notified.</small></div></li>
+      {% if status.promotion.level not in ('Top of ladder', 'No role on file') %}<li class="employee"><span>4</span><div><b>Promotion readiness: {{ status.promotion.level }}</b><small>{{ status.promotion.reason }}</small></div></li>{% endif %}
+    </ul></article>
+</section>
+
+<section id="development" class="lc-section"><article class="lc-card"><h2>My development actions</h2>
+  <div class="idp-progress"><div class="idp-bar"><i style="width: {{ plan.progress.pct }}%"></i></div><small>{{ plan.progress.done }} of {{ plan.progress.total }} done{% if plan.progress.overdue %} · {{ plan.progress.overdue }} overdue{% endif %}</small></div>
+  {% if plan.actions %}<ul class="action-list">{% for a in plan.actions if a.status != 'cancelled' %}
+    <li class="{{ 'done' if a.status == 'done' }}{{ ' overdue' if a.overdue }}"><span class="action-type">{{ a.type_label }}</span>
+      <div><b>{{ a.title }}</b><small>{% if a.skill %}{{ a.skill }} · {% endif %}due {{ a.due_date or '—' }}{% if a.success_measure %} · ✓ {{ a.success_measure }}{% endif %}</small></div>
+      <form method="post" action="/employee/actions/{{ a.action_id }}/status"><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <label class="visually-hidden" for="my-{{ a.action_id }}">Status</label>
+        <select id="my-{{ a.action_id }}" name="status">{% for s, label in [('open', 'Not started'), ('in_progress', 'In progress'), ('done', 'Done')] %}<option value="{{ s }}" {{ 'selected' if a.status == s }}>{{ label }}</option>{% endfor %}</select>
+        <button class="btn-ghost" type="submit">Update</button></form></li>{% endfor %}</ul>
+  {% else %}<div class="lc-empty">No actions yet. Your manager builds the plan with you.</div>{% endif %}
+</article></section>
+
+<section id="reviews" class="lc-section"><article class="lc-card"><h2>My reviews</h2>
+  {% for r in reviews %}
+    <div style="border:1px solid var(--lc-line);border-radius:12px;padding:14px;margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap"><b>{{ r.period }}{% if r.rating %} · {{ r.rating }}/5{% endif %}</b><span class="sig {{ 'tone-good' if r.status == 'acknowledged' else 'tone-warn' }}">{{ 'Acknowledged' if r.status == 'acknowledged' else 'Waiting for you' }}</span></div>
+      {% if r.summary %}<p style="white-space:pre-line;font-size:13px;line-height:1.55">{{ r.summary }}</p>{% endif %}
+      {% if r.strengths %}<p style="font-size:12.5px"><b>Strengths:</b> {{ r.strengths }}</p>{% endif %}
+      {% if r.improvements %}<p style="font-size:12.5px"><b>Development areas:</b> {{ r.improvements }}</p>{% endif %}
+      {% if r.status == 'shared' %}
+      <form method="post" action="/employee/reviews/{{ r.review_id }}/acknowledge" class="lc-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <label>Your comments (optional) <textarea name="comment" maxlength="2000" placeholder="Anything you'd like on the record"></textarea></label>
+        <div class="actions"><button class="button" type="submit">Acknowledge review</button><small class="hint">Acknowledging means you've read it, not that you agree.</small></div></form>
+      {% elif r.employee_comment %}<div class="reply" style="background:#f6f8fb;padding:8px 10px;border-radius:8px;font-size:12px"><b>Your comment:</b> {{ r.employee_comment }}</div>{% endif %}
+    </div>
+  {% else %}<div class="lc-empty">No reviews shared with you yet.</div>{% endfor %}
+</article></section>
+
+<section id="evidence" class="lc-section"><article class="lc-card"><h2>Evidence on my record</h2>
+  <p class="lc-sub">What your manager recorded and shared with you: appreciations, achievements, 1:1 notes and concerns. Add your side to anything.</p>
+  {% if evidence %}<ul class="timeline">{% for e in evidence %}{{ pm.evidence_item(e, true, false, '', csrf_token) }}{% endfor %}</ul>
+  {% else %}<div class="lc-empty">Nothing recorded yet.</div>{% endif %}
+</article></section>
+
+{% if probation %}
+<section id="probation" class="lc-section"><article class="lc-card"><h2>My probation</h2>
+  <p class="lc-sub">{{ probation.status_label }} · {{ probation.start_date }} → {{ probation.end_date }}{% if probation.open %} · {{ [probation.days_left, 0]|max }} days left{% endif %}</p>
+  <div class="prob-track"><i style="width: {{ probation.progress_pct }}%"></i>{% for k in probation.checkpoints %}<span class="prob-mark {{ k.state }}" style="left: {{ k.pos_pct }}%"><small>{{ k.short_label }}</small></span>{% endfor %}</div>
+  <ul class="checkpoint-list">{% for k in probation.checkpoints %}<li class="{{ k.state }}"><b>{{ k.label }}</b> <span class="sig">{{ k.rating_label or ('due ' ~ k.due_date) }}</span>
+    {% if k.note %}<p style="margin:6px 0 0;font-size:12.5px">{{ k.note }}</p>{% endif %}</li>{% endfor %}</ul>
+</article></section>
+{% endif %}
+
+<section class="lc-section lc-grid-2">
+  <article class="lc-card" id="pulse"><h2>Weekly check-in</h2>
+    <p class="lc-sub">Two questions, ten seconds. A wellbeing signal for support: it never changes your performance status. Your manager sees the team average, and a check-in prompt if your last few weeks suggest you could use support. They see your comment only if you share it.</p>
+    {% set mine = pulse.this_week or {} %}
+    <form method="post" action="/employee/pulse" class="lc-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <fieldset class="pulse-scale"><legend>How was your week?</legend>
+        {% for n, face in [(1, '😞'), (2, '😕'), (3, '😐'), (4, '🙂'), (5, '😄')] %}<label><input type="radio" name="mood" value="{{ n }}" required {{ 'checked' if mine.mood == n }}><span aria-label="{{ n }} of 5">{{ face }}</span></label>{% endfor %}</fieldset>
+      <fieldset class="pulse-scale"><legend>How heavy is your workload?</legend>
+        {% for n, label in [(1, 'Light'), (2, 'OK'), (3, 'Full'), (4, 'Heavy'), (5, 'Too much')] %}<label><input type="radio" name="workload" value="{{ n }}" required {{ 'checked' if mine.workload == n }}><span style="font-size:11px;width:auto;padding:0 10px">{{ label }}</span></label>{% endfor %}</fieldset>
+      <label>Anything to add? <input name="comment" maxlength="500" value="{{ mine.comment or '' }}"></label>
+      <label class="check"><input type="checkbox" name="shared" value="1" {{ 'checked' if mine.shared }}> Share my comment with my manager</label>
+      <div class="actions"><button class="button" type="submit">{{ 'Update' if pulse.this_week else 'Save' }} this week's check-in</button></div></form>
+  </article>
+  <article class="lc-card" id="kudos"><h2>Recognise a colleague</h2>
+    <p class="lc-sub">Say thank you for something specific. They're notified straight away; their manager adds it to their record.</p>
+    {% if colleagues %}
+    <form method="post" action="/employee/kudos" class="lc-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <label>Colleague <select name="recipient_id" required><option value="">Choose…</option>{% for c in colleagues %}<option value="{{ c.user_id }}">{{ c.full_name }}</option>{% endfor %}</select></label>
+      <label>What did they do? <textarea name="message" maxlength="600" required placeholder="e.g. Stayed late to help me clear the unapplied-cash backlog before close"></textarea></label>
+      <div class="actions"><button class="button" type="submit">Send recognition</button></div></form>
+    {% else %}<div class="lc-empty">No teammates found.</div>{% endif %}
+  </article>
+</section>
+{% endblock %}

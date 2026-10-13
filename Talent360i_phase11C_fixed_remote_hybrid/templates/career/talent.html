@@ -1,0 +1,59 @@
+{% extends 'base.html' %}
+{% block title %}Talent Pool{% endblock %}
+{% block breadcrumb %}{{ current_user.role_label }} / Talent Pool{% endblock %}
+{% macro candidate(c, role_id) -%}
+{% set x = c.analysis %}
+<a class="cand-card tone-{{ c.tone }}" href="/talent/{{ role_id }}/{{ c.user_id }}">
+  <div class="cc-top"><span class="pc-avatar" aria-hidden="true">{{ c.name.split()[:2]|map('first')|join|upper }}</span>
+    <div class="pc-id"><b>{{ c.name }}</b><small>{{ c.job_title or '—' }}{% if c.department %} · {{ c.department }}{% endif %}</small></div>
+    <span class="fit-pct tone-{{ 'best' if x.assessed_pct >= 80 else 'good' if x.assessed_pct >= 50 else 'low' }}" title="Skills at target on assessed levels">{{ x.assessed_pct }}%</span></div>
+  <ul class="sig-list">
+    {% if c.application %}<li class="sig tone-good">Applied · {{ c.application.status }}</li>{% endif %}
+    {% if c.aspiration %}<li class="sig tone-info">Aspires</li>{% endif %}
+    {% if c.potential %}<li class="sig">Potential fit</li>{% endif %}
+    {% if x.cross_vertical %}<li class="sig">{{ x.current.tower if x.current else '' }} → {{ x.role.tower }}</li>{% endif %}
+    {% if c.shortlisted_by %}<li class="sig tone-good">Shortlisted{% if c.shortlisted_by_me %} by you{% endif %}</li>{% endif %}
+  </ul>
+  <div class="cc-metrics">
+    <div><span>Readiness</span><strong>{{ c.promotion or '—' }}</strong></div>
+    <div><span>Performance</span><strong>{{ c.band or 'Private' }}</strong></div>
+    <div><span>With CV</span><strong>{{ x.pct }}%</strong></div>
+    <div><span>Critical gaps</span><strong class="{{ 'orange-text' if x.critical_missed }}">{{ x.critical_missed|length }}</strong></div>
+  </div>
+  <span class="cc-open">Talent card →</span>
+</a>
+{%- endmacro %}
+{% block content %}
+<div class="page-heading"><div><p class="eyebrow">INTERNAL MOBILITY · HIRING FROM WITHIN</p><h1>Talent pool</h1>
+  <p>Hiring for a role, including a promoted level? See everyone who aspires to it or applied, ranked by readiness, your own team first, then the rest of the organisation. Readiness uses assessed and validated levels; CV claims are shown separately. Performance is shown only for people who opted in or who you already manage.</p></div></div>
+{% if notice %}<div class="flash ok" role="status">{{ notice }}</div>{% endif %}
+{% if error %}<div class="flash err" role="alert">{{ error }}</div>{% endif %}
+
+<form class="lc-filters" method="get" action="/talent" data-autosubmit>
+  <label class="visually-hidden" for="pool-role">Role</label>
+  <select id="pool-role" name="role">{% for group in roles|groupby('vertical') %}<optgroup label="{{ group.grouper }}">
+    {% for r in group.list %}<option value="{{ r.role_id }}" {{ 'selected' if r.role_id == selected }}>{{ r.role_name }} ({{ r.role_grade }}){% if r.applied or r.aspiring %} · {{ r.applied }} applied, {{ r.aspiring }} aspire{% endif %}{% if r.postings %} · {{ r.postings }} posting{% endif %}</option>{% endfor %}</optgroup>{% endfor %}</select>
+  <label class="check-inline"><input type="checkbox" name="potential" value="1" {{ 'checked' if potential }}> Include potential fits who haven't applied</label>
+  <button class="btn-ghost" type="submit">Show pool</button>
+</form>
+
+{% if pool %}
+<article class="lc-card" style="margin-bottom:16px">
+  <div class="lc-card-head"><div><h2>{{ pool.role.role_name }} <small class="muted">· {{ pool.role.role_grade }} · {{ pool.role.tower }}</small></h2>
+    <p>{{ pool.counts.applied }} applied · {{ pool.counts.aspiring }} aspire{% if pool.include_potential %} · {{ pool.counts.potential }} potential fit(s) from recorded skills{% endif %} · {{ pool.skills|length }} required skills ({{ pool.skills|selectattr('is_critical')|list|length }} critical)</p></div>
+    {% if pool.postings %}<div class="heading-actions">{% for p in pool.postings %}<a class="btn-ghost" href="/jobs/{{ p.posting_id }}">Posting: {{ p.title }}</a>{% endfor %}</div>{% endif %}</div>
+</article>
+
+{% if current_user.role == 'manager' %}
+<div class="section-heading"><div><h2>Your team ({{ pool.team|length }})</h2><p>People who report to you and want this role.</p></div></div>
+{% if pool.team %}<div class="cluster-grid">{% for c in pool.team %}{{ candidate(c, pool.role.role_id) }}{% endfor %}</div>
+{% else %}<div class="lc-empty">No one in your team aspires to this role. Look across the organisation below.</div>{% endif %}
+{% endif %}
+<div class="section-heading" style="margin-top:18px"><div><h2>{{ 'Elsewhere in the organisation' if current_user.role == 'manager' else 'Candidates' }} ({{ pool.elsewhere|length }})</h2>
+  <p>Applicants first, then people who aspire to the role, then potential fits; each group by readiness.</p></div></div>
+{% if pool.elsewhere %}<div class="cluster-grid">{% for c in pool.elsewhere %}{{ candidate(c, pool.role.role_id) }}{% endfor %}</div>
+{% else %}<div class="lc-empty">No one{{ ' else' if current_user.role == 'manager' }} yet.{% if not pool.include_potential %} Tick “Include potential fits” to search recorded skills.{% endif %}</div>{% endif %}
+{% else %}
+<div class="lc-empty">Choose a role to see its talent pool.</div>
+{% endif %}
+{% endblock %}

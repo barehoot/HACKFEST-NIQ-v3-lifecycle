@@ -1,0 +1,14 @@
+SYNTHETIC SAMPLE CV (Talent 360i demo data, not a real person)
+
+P2P Senior Associate, Accounts Payable shared-services centre, 5 years.
+
+Experience
+- Processed standard PO and non-PO invoices and resolved 3-way match exceptions within SLA.
+- Built Python scripts with pandas to automate invoice matching checks, saving six hours a week.
+- Wrote SQL queries against the ERP data warehouse to reconcile vendor balances every month.
+- Created Power BI dashboards for AP ageing and exception trends used in the weekly ops review.
+- Used basic statistics (averages, variance, outlier checks) to flag unusual payment patterns.
+- Presented monthly exception trends to the finance director with clear recommendations.
+
+Training
+- Online course: Introduction to Machine Learning (in progress).

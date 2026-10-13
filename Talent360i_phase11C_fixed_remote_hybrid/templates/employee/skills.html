@@ -1,0 +1,85 @@
+{% extends 'base.html' %}
+{% import 'partials/viz.html' as viz %}
+{% block title %}My Skills & TNI{% endblock %}
+{% block breadcrumb %}Employee / My Skills & TNI{% endblock %}
+{% block content %}
+{% if tni %}
+{% set s = tni.summary %}
+<div class="page-heading"><div><p class="eyebrow">SKILL PROFILE · TRAINING NEEDS IDENTIFICATION</p><h1>My Skills & TNI</h1><p>{{ tni.role_name }}{% if tni.role_grade %} · {{ tni.role_grade }}{% endif %} · {{ tni.tower }}. Levels come from your TNI baseline and from assessments your manager reviewed (✓ validated, or assessed where a gap was confirmed); they are never set by AI.</p></div><a class="button secondary" href="/employee/learning">View recommended learning</a></div>
+
+<div class="metric-grid compact">
+  <article class="metric-card"><p>Skills at target</p><strong>{{ s.at_target }}<small> / {{ s.assessed }}</small></strong><small>{{ s.readiness_pct }}% role readiness</small></article>
+  <article class="metric-card"><p>Open skill gaps</p><strong>{{ s.gaps }}</strong><small>{{ s.high }} high · {{ s.moderate }} moderate</small></article>
+  <article class="metric-card"><p>Average level</p><strong>{{ 'L%.1f'|format(s.avg_current) if s.avg_current is not none else '—' }}</strong><small>Role target avg {{ 'L%.1f'|format(s.avg_target) if s.avg_target is not none else '—' }}</small></article>
+  <article class="metric-card"><p>Not yet assessed</p><strong>{{ s.not_assessed }}</strong><small>of {{ s.total }} role skills</small></article>
+</div>
+
+<div class="viz-grid-2">
+  <article class="card viz-card">
+    <div class="viz-head"><div><h2>Skill heatmap</h2><p>Each row is a role skill; each column a proficiency level. Blue is where you are, orange is the gap to your role target.</p></div></div>
+    {{ viz.skill_heatmap(tni.skills) }}
+  </article>
+  <article class="card viz-card">
+    <div class="viz-head"><div><h2>Learning curve · projected</h2><p>Average level if you follow your skill-up path one gap at a time ({{ s.weeks_total }} weeks, using Agent 5's duration model). A planning estimate, not a guarantee.</p></div></div>
+    {% if tni.curve and tni.path %}
+      {{ viz.learning_curve(tni.curve, 'my-curve', 'Projected average proficiency by week') }}
+    {% elif tni.curve %}
+      <p class="muted-copy">Every assessed skill is already at target — nothing to project.</p>
+    {% else %}
+      <p class="muted-copy">No assessed skills yet, so there is nothing to project.</p>
+    {% endif %}
+  </article>
+</div>
+
+<div class="card">
+  <div class="card-toolbar"><div><h2>Skill set</h2><p>{{ tni.role_name }}</p></div>
+    <div class="filters">{% for label in ['All', 'On Target', 'Needs Development', 'Not assessed'] %}<a href="/employee/skills{{ '' if label == 'All' else '?status=' ~ label|urlencode }}" class="{{ 'selected' if selected_status == label else '' }}">{{ label }}</a>{% endfor %}</div>
+  </div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Skill</th><th>Capability</th><th>Current</th><th>Target</th><th>Gap</th><th>Severity</th><th>Recommended course</th></tr></thead>
+    <tbody>
+    {% for skill in skills %}
+    <tr>
+      <td><b>{{ skill.skill }}</b>{% if skill.is_critical %}<small>Critical skill</small>{% endif %}</td>
+      <td>{{ skill.capability }}</td>
+      <td>{{ 'L' ~ skill.current if skill.assessed else '—' }}{% if skill.validated %} <span class="badge success" title="Certified by {{ skill.validated.by or 'your manager' }} on {{ skill.validated.date }}">✓ Validated</span>{% elif skill.confirmed_gap %} <span class="badge warning" title="Level your assessment showed, confirmed by {{ skill.confirmed_gap.by or 'your manager' }} on {{ skill.confirmed_gap.date }}">Assessed</span>{% endif %}</td>
+      <td>L{{ skill.target }}</td>
+      <td>{{ skill.gap if skill.assessed else '—' }}</td>
+      <td><span class="badge {{ 'danger' if skill.severity == 'High' else 'warning' if skill.severity == 'Moderate' else 'success' if skill.severity == 'No gap' else '' }}">{{ '▲ ' if skill.severity == 'High' else '● ' if skill.severity == 'Moderate' else '✓ ' if skill.severity == 'No gap' else '' }}{{ skill.severity }}</span></td>
+      <td>{% if skill.course %}<a class="text-link" href="/learning/catalog/{{ skill.course.course_id }}">{{ skill.course.course_id }}</a> · {{ skill.course.short_title }}{% elif skill.gap %}<span class="muted">No catalogue course yet</span>{% else %}<span class="muted">—</span>{% endif %}</td>
+    </tr>
+    {% else %}<tr><td colspan="7" class="empty">No skills match this filter.</td></tr>{% endfor %}
+    </tbody>
+  </table></div>
+</div>
+
+{% if career and career.next %}
+<div class="card table-card career-card">
+  <div class="card-toolbar"><div><h2>Career path · {{ career.current.role_name }} → {{ career.next.role_name }} ({{ career.next.role_grade }})</h2>
+    <p>Your levels against the next role's targets. {{ career.validated }} of {{ career.total }} are validated by an approved assessment{% if career.unknown %}; {{ career.unknown }} not assessed yet{% endif %}.</p></div>
+    <span class="badge {{ 'success' if career.band == 'Ready' else 'warning' if career.band == 'Developing' else 'danger' }}">{{ career.band }} · {{ career.pct }}% at target</span>
+  </div>
+  {% if nomination %}<div class="flash {{ 'ok' if nomination.status != 'declined' else 'err' }}" role="status" style="margin:12px 18px 0">
+    {% if nomination.status == 'pending' %}Your manager has put you forward for promotion to {{ nomination.to_role_name }}. The leadership team is reviewing it.
+    {% elif nomination.status == 'approved' %}Your promotion to {{ nomination.to_role_name }} was approved on {{ nomination.decided_at[:10] }}. HR will follow up.
+    {% else %}A promotion nomination to {{ nomination.to_role_name }} was not approved this time. Talk to your manager about next steps.{% endif %}</div>{% endif %}
+  <div class="table-wrap"><table>
+    <thead><tr><th>Skill for {{ career.next.role_name }}</th><th>Target</th><th>Your level</th><th>Status</th></tr></thead>
+    <tbody>{% for r in career.rows %}
+      <tr><td><b>{{ r.skill }}</b>{% if r.is_critical %}<small>Critical skill</small>{% endif %}</td><td>L{{ r.target }}</td>
+        <td>{{ 'L' ~ r.level if r.level is not none else '—' }}{% if r.validated %} ✓{% endif %}</td>
+        <td>{% if r.met %}<span class="badge success">✓ At target</span>{% elif r.level is none %}<span class="muted">Not assessed</span>{% else %}<span class="badge warning">{{ r.gap }} level(s) to go</span>{% endif %}</td></tr>
+    {% endfor %}</tbody>
+  </table></div>
+</div>
+{% elif career and career.current %}
+<div class="notice-card" style="margin-top:12px">{{ career.current.role_name }} is the top of the modelled career ladder for {{ career.current.tower }}, so there is no next role to compare against.</div>
+{% endif %}
+
+{% else %}
+<div class="page-heading"><div><p class="eyebrow">SKILL PROFILE</p><h1>My Skills</h1><p>Track proficiency progress against your role requirements.</p></div></div>
+<div class="notice-card">No TNI baseline is on file for your account yet, so the heatmap and learning curve aren't available. Complete an assessment from your dashboard to build one.</div>
+<div class="metric-grid compact"><article class="metric-card"><p>Total Skills</p><strong>{{ summary.total }}</strong></article><article class="metric-card"><p>On Target</p><strong class="green-text">{{ summary.on_target }}</strong></article><article class="metric-card"><p>Skill Gaps</p><strong class="orange-text">{{ summary.gaps }}</strong></article><article class="metric-card"><p>Average Proficiency</p><strong>{{ summary.average }}</strong></article></div>
+<div class="card"><div class="card-toolbar"><div><h2>Role Skill Profile</h2><p>{{ current_user.job_title }}</p></div><div class="filters"><a href="/employee/skills" class="{{ 'selected' if selected_status == 'All' else '' }}">All</a><a href="/employee/skills?status=On%20Target" class="{{ 'selected' if selected_status == 'On Target' else '' }}">On Target</a><a href="/employee/skills?status=Needs%20Development" class="{{ 'selected' if selected_status == 'Needs Development' else '' }}">Needs Development</a></div></div><div class="table-wrap"><table><thead><tr><th>Skill ID</th><th>Skill Name</th><th>Framework</th><th>Current Level</th><th>Target Level</th><th>Gap</th><th>Status</th></tr></thead><tbody>{% for skill in skills %}<tr><td class="muted">{{ skill.id }}</td><td><b>{{ skill.name }}</b></td><td>{{ skill.framework }}</td><td>{{ skill.current_level }}</td><td>{{ skill.target_level }}</td><td>{{ skill.gap }}</td><td><span class="badge {{ 'success' if skill.status == 'On Target' else 'warning' }}">{{ skill.status }}</span></td></tr>{% else %}<tr><td colspan="7" class="empty">No skills match this filter.</td></tr>{% endfor %}</tbody></table></div></div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,125 @@
+{% extends 'base.html' %}
+{% import 'partials/viz.html' as viz %}
+{% block title %}Career & Mobility{% endblock %}
+{% block breadcrumb %}Employee / Career & Mobility{% endblock %}
+{% macro source_badge(r) -%}
+{% if r.level is none %}<span class="src src-none">Not assessed</span>
+{% else %}<span class="src src-{{ r.source }}" title="{{ r.quote or '' }}">L{{ r.level }} · {{ r.source_label }}</span>{% endif %}
+{%- endmacro %}
+{% block content %}
+<div class="page-heading"><div><p class="eyebrow">MY CAREER · ANY DEPARTMENT, ANY VERTICAL</p><h1>Career & mobility</h1>
+  <p>Pick up to {{ max_aspirations }} roles you'd like next, here or in another department or vertical. For each one you see the skills it needs, where you are today (from validated and assessed levels, then your CV), the training that closes each gap, and when you could be ready. Book the training onto your calendar, or apply for an open internal posting.</p></div>
+  {% if current %}<div class="cur-role"><small>Today</small><b>{{ current.role_name }}</b><span>{{ current.tower }}{% if status %} · {{ status.band }}{% endif %}</span></div>{% endif %}</div>
+{% if notice %}<div class="flash ok" role="status">{{ notice }}</div>{% endif %}
+{% if error %}<div class="flash err" role="alert">{{ error }}</div>{% endif %}
+
+<nav class="profile-tabs" aria-label="Career sections">
+  <a href="#aspirations">My aspirations <span class="count">{{ aspirations|length }}</span></a>
+  <a href="#jobs">Internal jobs <span class="count">{{ postings|length }}</span></a>
+  <a href="#cv">CV skill evidence{% if claims %} <span class="count">{{ claims|length }}</span>{% endif %}</a>
+  <a href="#applications">My applications{% if applications %} <span class="count">{{ applications|length }}</span>{% endif %}</a>
+</nav>
+
+<section id="aspirations" class="lc-section">
+  {% for a in aspirations %}{% set x = a.analysis %}
+  <article class="lc-card asp-detail">
+    <div class="lc-card-head"><div>
+      <h2>{{ a.role_name or a.posting_title }}{% if x %} <small class="muted">· {{ x.role.role_grade }} · {{ x.role.tower }}</small>{% endif %}</h2>
+      <p>{% if x and x.cross_vertical %}<span class="sig tone-info">Cross-vertical: {{ x.current.tower if x.current else '—' }} → {{ x.role.tower }}</span>{% elif x and x.cross_department %}<span class="sig tone-info">Another department</span>{% endif %}
+        {% if a.note %} “{{ a.note }}”{% endif %}</p></div>
+      <form method="post" action="/employee/career/aspirations/{{ a.aspiration_id }}/withdraw"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="link-button" type="submit">Withdraw</button></form></div>
+    {% if x %}
+    <div class="asp-stats wide">
+      <div><span>Skills at target</span><strong>{{ x.met }}/{{ x.total }}</strong><small>{{ x.pct }}% incl. CV · {{ x.assessed_pct }}% assessed</small></div>
+      <div><span>Promotion readiness</span><strong>{{ x.promotion.level }}</strong><small>{{ x.promotion.reason }}</small></div>
+      <div><span>Skill-up path</span><strong>{{ x.weeks_total }} weeks</strong><small>{{ x.path|length }} gap(s), one at a time</small></div>
+      <div><span>Not assessed yet</span><strong>{{ x.unknown }}</strong><small>{{ 'Add your CV or take an assessment' if x.unknown else 'Every skill has a level' }}</small></div>
+    </div>
+    <div class="lc-grid-2">
+      <div class="table-wrap"><table><thead><tr><th>Skill for {{ x.role.role_name }}</th><th>Target</th><th>Me today</th><th>Gap</th><th>Training</th></tr></thead><tbody>
+        {% for r in x.rows %}<tr><td><b>{{ r.skill }}</b>{% if r.is_critical %}<small>Critical</small>{% endif %}</td><td>L{{ r.target }}</td><td>{{ source_badge(r) }}</td>
+          <td>{% if r.met %}<span class="badge success">✓</span>{% else %}<span class="badge warning">−{{ r.gap_to_close }}</span>{% endif %}</td>
+          <td>{% if r.course %}<a class="text-link" href="/learning/catalog/{{ r.course.course_id }}">{{ r.course.short_title }}</a><small>~{{ r.weeks }} wks</small>{% elif not r.met %}<small class="muted">No course yet: ask for a stretch task</small>{% else %}—{% endif %}</td></tr>{% endfor %}
+      </tbody></table></div>
+      <div>
+        {% if x.curve and x.path %}{{ viz.learning_curve(x.curve, 'curve-' ~ loop.index, 'Projected average level for ' ~ x.role.role_name) }}
+        {% else %}<p class="muted-copy">You already meet every target for this role.</p>{% endif %}
+      </div>
+    </div>
+    <div class="asp-actions">
+      {% if x.path %}
+      <form method="post" action="/employee/career/upskill" class="inline-row" data-busy-label="Booking…"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="role_id" value="{{ x.role.role_id }}">
+        <label>Start <input type="date" name="start_date" value="{{ today }}" min="{{ today }}" required></label>
+        <label>Every <select name="cadence_days"><option value="7">week</option><option value="14">2 weeks</option></select></label>
+        <button class="button" type="submit">Map gap training to my calendar</button></form>
+      {% endif %}
+      {% if a.application %}<span class="sig tone-good">Applied · {{ a.application.status|title }}</span>
+      {% else %}
+      <details class="lc-disclosure"><summary>Apply for {{ x.role.role_name }}</summary>
+        <form method="post" action="/employee/career/apply" class="lc-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <input type="hidden" name="role_id" value="{{ x.role.role_id }}"><input type="hidden" name="posting_id" value="{{ a.posting_id or '' }}">
+          <label>Why this role, and what you'd bring <textarea name="note" maxlength="1500" required minlength="20"></textarea></label>
+          <p class="lc-meta">Your readiness snapshot goes with it. Your manager is told; internal moves are open to everyone.</p>
+          <div class="actions"><button class="button" type="submit">Send application</button></div></form></details>
+      {% endif %}
+    </div>
+    {% else %}<p class="lc-meta">This posting isn't mapped to a job profile yet, so its skills can't be compared. HR maps postings; you can still apply from the job page.</p>{% endif %}
+  </article>
+  {% else %}<div class="lc-empty">No aspirations yet. Add a role below, or pick one from the internal jobs.</div>{% endfor %}
+
+  {% if aspirations|length < max_aspirations %}
+  <article class="lc-card"><h2>＋ Add an aspiration</h2><p class="lc-sub">Any job profile in any vertical, including ones outside your department.</p>
+    <form method="post" action="/employee/career/aspirations" class="lc-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <div class="row"><label>Role <select name="role_id" required><option value="">Choose a role…</option>
+        {% for group in roles|groupby('vertical') %}<optgroup label="{{ group.grouper }}">{% for r in group.list %}{% if not current or r.role_id != current.role_id %}<option value="{{ r.role_id }}">{{ r.role_name }} ({{ r.role_grade }}){% if r.department %} · {{ r.department }}{% endif %}</option>{% endif %}{% endfor %}</optgroup>{% endfor %}</select></label>
+        <label>Why (optional) <input name="note" maxlength="400" placeholder="e.g. I build Python and Power BI tools and want to move into analytics"></label></div>
+      <div class="actions"><button class="button" type="submit">Add aspiration</button></div></form>
+  </article>
+  {% endif %}
+</section>
+
+<section id="jobs" class="lc-section"><article class="lc-card">
+  <div class="lc-card-head"><div><h2>Internal jobs</h2>
+    <p>{% if connected %}Open internal postings from SmartRecruiters{% else %}<span class="sig tone-warn">Demo feed</span> SmartRecruiters isn't connected yet, so these are sample postings{% endif %}. Where a posting maps to a job profile you see your fit.</p></div></div>
+  <form class="lc-filters" method="get" action="/employee/career#jobs" role="search"><input type="search" name="q" value="{{ q }}" placeholder="Search title, department, location or JD" maxlength="80">
+    <select name="tower" aria-label="Vertical"><option value="">All verticals</option>{% for t in towers %}<option {{ 'selected' if tower == t }}>{{ t }}</option>{% endfor %}</select>
+    <button class="btn-ghost" type="submit">Search</button>{% if q or tower %}<a class="text-link" href="/employee/career#jobs">Clear</a>{% endif %}</form>
+  {% if postings %}<ul class="job-list">
+    {% for p in postings %}{% set f = fit.get(p.role_id) %}
+    <li><div><a class="job-title" href="/jobs/{{ p.posting_id }}">{{ p.title }}</a>
+        <small>{{ p.department or '—' }}{% if p.location %} · {{ p.location }}{% endif %}{% if p.experience_level %} · {{ p.experience_level }}{% endif %}{% if p.released_on %} · posted {{ p.released_on }}{% endif %}</small></div>
+      <div class="job-fit">{% if f %}<span class="fit-pct tone-{{ 'best' if f.pct >= 80 else 'good' if f.pct >= 50 else 'low' }}">{{ f.pct }}%</span><small>{{ f.promotion.level }}</small>
+        {% else %}<small class="muted">Skills not mapped yet</small>{% endif %}</div>
+      <div class="job-actions"><a class="btn-ghost" href="/jobs/{{ p.posting_id }}">View JD</a>
+        {% if not aspirations|selectattr('posting_id', 'equalto', p.posting_id)|list and not (p.role_id and aspirations|selectattr('role_id', 'equalto', p.role_id)|list) and aspirations|length < max_aspirations %}
+        <form method="post" action="/employee/career/aspirations"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="posting_id" value="{{ p.posting_id }}">
+          <button class="btn-ghost" type="submit">＋ Aspire</button></form>{% endif %}</div></li>
+    {% endfor %}</ul>
+  {% else %}<div class="lc-empty">No open postings match.</div>{% endif %}
+</article></section>
+
+<section id="cv" class="lc-section lc-grid-2">
+  <article class="lc-card"><h2>CV skill evidence</h2>
+    <p class="lc-sub">Agent 8 reads your CV for the skills your role and your aspirations need ({{ cv_targets|length }}), and records the level it claims with a short quote copied from it. <b>Your CV itself is not stored.</b> A CV claim counts as "CV claim" in your gap analysis, never as a validated level, and doesn't change your promotion readiness.</p>
+    <form method="post" action="/employee/career/cv" enctype="multipart/form-data" class="lc-form" data-busy-label="Agent 8 is reading your CV…"><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <label>CV (PDF, DOCX or TXT, up to 5 MB) <input type="file" name="resume" accept=".pdf,.docx,.txt" required></label>
+      <div class="actions"><button class="btn-ai" type="submit">✦ Read my CV for skill evidence</button></div></form>
+  </article>
+  <article class="lc-card"><h2>What your CV shows ({{ claims|length }})</h2>
+    {% if claims %}<div class="table-wrap"><table><thead><tr><th>Skill</th><th>Claimed</th><th>Quote from your CV</th></tr></thead><tbody>
+      {% for c in claims %}<tr><td><b>{{ c.skill }}</b></td><td>L{{ c.level }}</td><td><small>“{{ c.quote }}”</small></td></tr>{% endfor %}</tbody></table></div>
+      <p class="lc-meta">{{ 'AI-read' if claims[0].generated_by == 'agent' else 'Demo data' if claims[0].generated_by == 'seed' else 'Keyword match (the AI was unavailable)' }} · {{ claims[0].created_at[:10] }} · {{ claims[0].source_file }}</p>
+      <form method="post" action="/employee/career/cv/clear"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="link-button" type="submit">Remove my CV claims</button></form>
+    {% else %}<div class="lc-empty">No CV read yet.</div>{% endif %}
+  </article>
+</section>
+
+<section id="applications" class="lc-section"><article class="lc-card"><h2>My applications</h2>
+  {% if applications %}<div class="table-wrap"><table><thead><tr><th>Role</th><th>Applied</th><th>Readiness then</th><th>Status</th><th></th></tr></thead><tbody>
+    {% for ap in applications %}<tr><td><b>{{ ap.role_name or ap.posting_title }}</b></td><td>{{ ap.created_at[:10] }}</td>
+      <td>{{ ap.readiness.pct ~ '%' if ap.readiness.pct is not none else '—' }}</td>
+      <td><span class="badge {{ 'success' if ap.status == 'shortlisted' else 'danger' if ap.status == 'declined' else 'blue' }}">{{ ap.status|title }}</span>{% if ap.decision_note %}<small>{{ ap.decision_note }}</small>{% endif %}</td>
+      <td>{% if ap.status in ('submitted', 'shortlisted') %}<form method="post" action="/employee/career/applications/{{ ap.application_id }}/withdraw"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="link-button" type="submit">Withdraw</button></form>{% endif %}</td></tr>{% endfor %}
+  </tbody></table></div>{% else %}<div class="lc-empty">No applications yet.</div>{% endif %}
+</article></section>
+{% endblock %}

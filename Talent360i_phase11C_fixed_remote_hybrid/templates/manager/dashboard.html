@@ -1,0 +1,49 @@
+{% extends 'base.html' %}
+{% import 'people/_macros.html' as pm %}
+{% block title %}Team Dashboard{% endblock %}
+{% block breadcrumb %}Manager / Team Overview{% endblock %}
+{% block content %}
+<div class="page-heading"><div><p class="eyebrow">TEAM OVERVIEW</p><h1>Welcome, {{ current_user.name }}</h1>
+  <p>{{ current_user.department }} <span>•</span> Who is on track, who needs you this week, and where the skill gaps are.</p></div>
+  <a class="button secondary" href="/manager/reports">View report</a></div>
+{% if notice %}<div class="flash ok" role="status">{{ notice }}</div>{% endif %}
+
+<div class="metric-grid">
+  <article class="metric-card"><span class="metric-icon blue">◈</span><p>Team Skill Readiness</p><strong>{{ dashboard.metrics.readiness }}</strong><small>Across your direct reports</small></article>
+  <article class="metric-card"><span class="metric-icon purple">♙</span><p>Employees</p><strong>{{ dashboard.metrics.members }}</strong><small>Direct reports</small></article>
+  <article class="metric-card"><span class="metric-icon orange">!</span><p>Critical Skill Gaps</p><strong>{{ dashboard.metrics.gaps }}</strong><small>Across the team</small></article>
+  <article class="metric-card"><span class="metric-icon red">□</span><p>Pending Assessments</p><strong>{{ dashboard.metrics.pending }}</strong><small>Require completion</small></article>
+</div>
+
+{% set attention = pending_evidence|length + escalations|length + probation.rows|selectattr('attention')|list|length + pulse.check_in|length %}
+<section class="lc-grid-2 lc-section" style="margin-top:18px">
+  <article class="lc-card"><div class="lc-card-head"><div><h2>Needs your attention{% if attention %} ({{ attention }}){% endif %}</h2><p>Suggestions to confirm, probation steps, escalations and check-ins.</p></div></div>
+    <ul class="attention-list">
+      {% for e in pending_evidence[:5] %}<li class="tone-good"><a href="/people/{{ e.user_id }}#pending"><span class="ico">✉</span><div><b>Confirm evidence for {{ e.employee_name }}</b><small>{{ e.title }} · {{ e.source }}</small></div><span>→</span></a></li>{% endfor %}
+      {% for r in probation.rows if r.attention %}<li class="tone-low"><a href="/people/{{ r.user_id }}#probation"><span class="ico">P</span><div><b>{{ r.employee_name }}: probation</b>
+        <small>{% if r.status == 'pending_leader' %}With the leader for a decision{% elif r.decision_due %}Recommendation due: ends {{ r.end_date }}{% else %}Check-in overdue{% endif %}</small></div><span>→</span></a></li>{% endfor %}
+      {% for e in escalations %}<li class="tone-poor"><a href="/people/{{ e.user_id }}#escalations"><span class="ico">!</span><div><b>{{ e.employee_name }}: {{ 'escalated to the leader' if e.level == 'leader' else 'escalation' }}</b><small>{{ e.reason }}</small></div><span>→</span></a></li>{% endfor %}
+      {% for uid in pulse.check_in %}{% set c = cards|selectattr('user_id', 'equalto', uid)|first %}{% if c %}<li class="tone-low"><a href="/people/{{ uid }}"><span class="ico">♥</span><div><b>Check in with {{ c.name }}</b><small>Recent pulse check-ins suggest they may need support</small></div><span>→</span></a></li>{% endif %}{% endfor %}
+      {% if not attention %}<li class="lc-empty">Nothing waiting on you. Nice.</li>{% endif %}
+    </ul>
+  </article>
+  <article class="lc-card"><h2>Team pulse <small class="muted">· last 4 weeks</small></h2>
+    <p class="lc-sub">Wellbeing, not performance: it never changes anyone's status. Individual comments appear only when shared.</p>
+    <div class="qv-stats">
+      <div class="qv-stat"><span>Mood</span><strong>{{ pulse.avg_mood ~ ' / 5' if pulse.avg_mood is not none else '—' }}</strong><small>team average</small></div>
+      <div class="qv-stat"><span>Workload</span><strong>{{ pulse.avg_workload ~ ' / 5' if pulse.avg_workload is not none else '—' }}</strong><small>5 = too much</small></div>
+      <div class="qv-stat"><span>This week</span><strong>{{ pulse.response_pct }}%</strong><small>{{ pulse.this_week }} of {{ pulse.team }} checked in</small></div>
+      <div class="qv-stat"><span>Check-ins</span><strong>{{ pulse.check_in|length }}</strong><small>suggested</small></div>
+    </div>
+    {% if pulse.comments %}<ul style="margin:12px 0 0;padding-left:18px;font-size:12.5px">{% for c in pulse.comments[:4] %}<li>“{{ c.comment }}” <small class="muted">· {{ c.week }}</small></li>{% endfor %}</ul>{% endif %}
+  </article>
+</section>
+
+<div class="section-heading"><div><h2>Your team at a glance</h2><p>Hover a card to lift it; click for the quick view. Sorted so the people who need you come first.</p></div><a href="/people">All people & filters →</a></div>
+<div class="band-strip">{% for b in bands %}<a class="band-tile tone-{{ b.tone }}" href="/people?band={{ b.band|urlencode }}"><span>{{ b.band }}</span><strong>{{ b.count }}</strong><small>{{ b.tier or 'needs evidence' }} · {{ b.pct }}%</small></a>{% endfor %}</div>
+{% if cards %}<div class="people-grid">{% for c in cards[:12] %}{{ pm.person_card(c) }}{% endfor %}</div>
+  {% if cards|length > 12 %}<p style="margin-top:10px"><a class="text-link" href="/people">See all {{ cards|length }} →</a></p>{% endif %}
+{% else %}<div class="lc-empty">No direct reports.</div>{% endif %}
+
+<div class="two-col"><article class="card"><div class="section-heading"><div><h2>Team Skill Matrix</h2><p>Proficiency by process tower.</p></div><a href="/manager/skill-matrix">Expand →</a></div><div class="table-wrap"><table><thead><tr><th>Employee</th><th>AP</th><th>O2C</th><th>R2R</th><th>Overall</th></tr></thead><tbody>{% for row in matrix %}<tr><td><b>{{ row.employee }}</b></td><td><span class="level-badge">{{ row.AP }}</span></td><td><span class="level-badge">{{ row.O2C }}</span></td><td><span class="level-badge">{{ row.R2R }}</span></td><td><span class="level-badge strong">{{ row.overall }}</span></td></tr>{% endfor %}</tbody></table></div></article><article class="card"><div class="section-heading"><div><h2>Skill Gaps / TNI</h2><p>Highest-priority development needs.</p></div><a href="/manager/learning">Open TNI →</a></div>{% for gap in dashboard.gaps %}<div class="learning-row"><span class="learning-icon">!</span><div><b>{{ gap.skill }}</b><small>{{ gap.employees }} employee{{ 's' if gap.employees != 1 }} affected · {{ gap.high }} high · average gap {{ gap.gap }} level{{ 's' if gap.gap != 1 }}</small></div></div>{% endfor %}</article></div>
+{% endblock %}

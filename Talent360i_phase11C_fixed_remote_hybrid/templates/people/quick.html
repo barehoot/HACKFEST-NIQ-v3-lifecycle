@@ -1,0 +1,41 @@
+{# Quick-view fragment loaded into the card dialog (routes/lifecycle_people.people_quick_card). #}
+{% import 'people/_macros.html' as pm %}
+<div class="tone-{{ status.tone }}">
+  <header class="qv-head">
+    <span class="pc-avatar" aria-hidden="true">{{ card.initials }}</span>
+    <div style="flex:1;min-width:0">
+      <h2>{{ employee.full_name }}</h2>
+      <p>{{ card.role_name }}{% if card.department and card.department != '—' %} · {{ card.department }}{% endif %} · {{ employee.user_id }}</p>
+      <div style="margin-top:8px">{{ pm.band_chip(status.band, status.tier, status.tone) }}</div>
+    </div>
+    {{ pm.score_ring(status.score, status.tone, 'lg') }}
+  </header>
+  <div class="qv-body">
+    <div class="qv-stats">
+      <div class="qv-stat"><span>Skills at target</span><strong>{{ status.readiness_pct ~ '%' if status.readiness_pct is not none else '—' }}</strong><small>current role</small></div>
+      <div class="qv-stat"><span>Latest review</span><strong>{{ review.rating ~ '/5' if review and review.rating else '—' }}</strong><small>{{ review.period if review else 'none shared' }}</small></div>
+      <div class="qv-stat"><span>Development</span><strong>{{ plan.progress.done }}/{{ plan.progress.total }}</strong><small>{{ plan.progress.overdue ~ ' overdue' if plan.progress.overdue else 'actions done' }}</small></div>
+      <div class="qv-stat"><span>Promotion</span><strong style="font-size:13.5px">{{ status.promotion.level }}</strong><small>{{ (status.context.readiness.next or {}).role_name or '' }}</small></div>
+    </div>
+    {% if probation and probation.open %}
+    <div class="qv-section"><h3>Probation</h3>
+      <div class="idp-progress"><div class="idp-bar"><i style="width: {{ probation.progress_pct }}%"></i></div>
+        <small>{{ probation.status_label }} · {{ [probation.days_left, 0]|max }} days left · {{ probation.checkpoints|selectattr('completed_at')|list|length }}/{{ probation.checkpoints|length }} check-ins</small></div>
+    </div>
+    {% endif %}
+    <div class="qv-section"><h3>Why this status</h3>{{ pm.factor_bars(status.factors[:5], status.tone, status.missing) }}</div>
+    {% if status.signals %}<div class="qv-section"><h3>Signals</h3>{{ pm.signals(status.signals, 8) }}</div>{% endif %}
+    {% if status.recommendations %}
+    <div class="qv-section"><h3>Suggested next steps</h3>
+      <ul class="rec-list">{% for r in status.recommendations[:3] %}<li class="{{ r.audience }}"><span>{{ loop.index }}</span><div><b>{{ r.title }}</b><small>{{ r.detail }}</small></div></li>{% endfor %}</ul>
+    </div>{% endif %}
+    <div class="qv-section"><h3>Recent evidence · last {{ counts.days }} days: {{ counts.positive }} positive, {{ counts.negative }} negative, {{ counts.one_on_one }} 1:1s</h3>
+      {% if evidence %}<ul class="timeline">{% for e in evidence %}{{ pm.evidence_item(e) }}{% endfor %}</ul>
+      {% else %}<div class="lc-empty">No evidence recorded yet.</div>{% endif %}</div>
+    <div class="qv-actions">
+      <a class="button" href="/people/{{ employee.user_id }}">Open full profile →</a>
+      {% if can_edit %}<a class="btn-ghost" href="/people/{{ employee.user_id }}#evidence">＋ Log evidence or a 1:1</a>
+      <a class="btn-ghost" href="/people/{{ employee.user_id }}#development">Development plan</a>{% endif %}
+    </div>
+  </div>
+</div>

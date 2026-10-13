@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Leader Overview{% endblock %}
+{% block breadcrumb %}Leader / Executive Insights{% endblock %}
+{% block content %}
+<section class="crextio-hero leader-hero"><div><p class="eyebrow">EXECUTIVE INSIGHTS</p><h1>Capability at a glance</h1><p>One governed view of distribution, critical coverage, movement, item quality and manager calibration.</p></div><div class="leader-framework-switch"><a class="yellow-button" href="/leader/distribution?framework=finops">FinOps <span>→</span></a><a class="dark-button" href="/leader/distribution?framework=rd">RD <span>→</span></a></div></section>
+<div class="quick-metrics leader-kpis">
+  <div class="quick-metric dark-metric"><span>Employees</span><strong>{{ leader.metrics.employees }}</strong><small>In scope</small></div>
+  <div class="quick-metric"><span>Assessment Coverage</span><strong>{{ leader.metrics.assessment_coverage }}</strong><small>Of role skills assessed</small></div>
+  <div class="quick-metric accent-metric"><span>Open Gaps</span><strong>{{ leader.metrics.open_gaps }}</strong><small>Across the organisation</small></div>
+  <div class="quick-metric"><span>People in training</span><strong>{{ leader.metrics.learning_plans }}</strong><small>Enrolled in catalogue courses</small></div>
+</div>
+<section class="leader-grid">
+  <a class="leader-nav-card" href="/leader/performance"><span class="leader-card-icon success">◐</span><div><b>Performance: on track / off track</b><p>Band mix by department, concerns, promotion-ready people and top performers, with escalations waiting on you.</p></div><span>→</span></a>
+  <a class="leader-nav-card" href="/people"><span class="leader-card-icon">♙</span><div><b>People cards</b><p>Every employee at a glance: pop-out cards with status, factors and signals; open one for the full 360 profile.</p></div><span>→</span></a>
+  <a class="leader-nav-card" href="/leader/probation"><span class="leader-card-icon warning">P</span><div><b>Probation decisions</b><p>New joiners tracked from day one: check-ins at months 1, 3 and 5; you decide on the manager's recommendation.</p></div><span>→</span></a>
+  <a class="leader-nav-card" href="/org/job-profiles"><span class="leader-card-icon ai">◫</span><div><b>Job profiles & skill trends</b><p>Keep each job's required skills current as the market moves; approve managers' proposals.</p></div><span>→</span></a>
+  <a class="leader-nav-card" href="/leader/reports"><span class="leader-card-icon">▤</span><div><b>Organisation report</b><p>Live capability, assessment, training and decision reporting, with CSV export.</p></div><span>→</span></a>
+  <a class="leader-nav-card" href="/leader/distribution?framework=finops"><span class="leader-card-icon">F</span><div><b>Skill distribution</b><p>FinOps L0–L5 and RD Beginner–Expert remain framework-specific.</p></div><span>→</span></a>
+  <a class="leader-nav-card" href="/leader/critical-skills?framework=finops"><span class="leader-card-icon warning">△</span><div><b>Critical skill coverage</b><p>See where critical capabilities remain below target.</p></div><span>→</span></a>
+  <a class="leader-nav-card" href="/leader/movement?framework=finops"><span class="leader-card-icon success">↗</span><div><b>Movement over time</b><p>Track capability movement without changing level definitions.</p></div><span>→</span></a>
+  <a class="leader-nav-card" href="/leader/item-analysis"><span class="leader-card-icon ai">▦</span><div><b>Item analysis</b><p>Surface difficult or weak assessment items as learning signals.</p></div><span>→</span></a>
+  <a class="leader-nav-card" href="/leader/calibration"><span class="leader-card-icon">◉</span><div><b>Manager calibration</b><p>Review the evidence behind approved and sent-back decisions; request re-review where it looks biased.</p></div><span>→</span></a>
+</section>
+<section class="neo-card leader-principle"><div class="card-label-row"><span>Governed insight</span><span>Read-only</span></div><h2>Leaders read the capability picture — they do not change proficiency decisions.</h2><p>Levels are calculated by deterministic domain logic and confirmed through the appropriate human gate. Leader analytics aggregate confirmed state and history.</p></section>
+{% endblock %}

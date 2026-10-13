@@ -1,0 +1,46 @@
+{% extends 'base.html' %}
+{% block title %}Probation{% endblock %}
+{% block breadcrumb %}{{ current_user.role_label }} / Probation{% endblock %}
+{% block content %}
+{% set decides = current_user.role in ('leader', 'admin') %}
+<div class="page-heading"><div><p class="eyebrow">NEW JOINERS · 6-MONTH PROBATION</p><h1>{{ 'Probation decisions' if decides else 'Probation tracker' }}</h1>
+  <p>Every new joiner is tracked from their hire date with check-ins at months 1, 3 and 5. Managers recommend; {{ 'you decide' if decides else 'the business leader decides' }}. Talent 360i records the outcome for HR; it never changes an employment record itself.</p></div></div>
+{% if notice %}<div class="flash ok" role="status">{{ notice }}</div>{% endif %}
+{% if error %}<div class="flash err" role="alert"><b>Not recorded:</b> {{ error }}</div>{% endif %}
+
+<div class="metric-grid compact">
+  <article class="metric-card"><p>In probation</p><strong>{{ pipeline.open }}</strong><small>Active or awaiting a decision</small></article>
+  <article class="metric-card"><p>{{ 'Awaiting you' if decides else 'Awaiting the leader' }}</p><strong class="orange-text">{{ pipeline.pending_leader }}</strong><small>Manager recommendations</small></article>
+  <article class="metric-card"><p>Decision due ≤ 30 days</p><strong>{{ pipeline.decision_due }}</strong><small>No recommendation yet</small></article>
+  <article class="metric-card"><p>Overdue check-ins</p><strong class="{{ 'orange-text' if pipeline.overdue_checkins }}">{{ pipeline.overdue_checkins }}</strong><small>Managers have been reminded</small></article>
+</div>
+
+{% for r in pipeline.rows if r.status == 'pending_leader' %}
+<article class="lc-card" style="margin-bottom:14px">
+  <div class="lc-card-head"><div><h2>{{ r.employee_name }} <small class="muted">· {{ r.job_title or '' }}</small></h2>
+    <p>Manager {{ r.manager_name or '—' }} recommends <b>{{ r.recommendation_label }}</b> · probation {{ r.start_date }} → {{ r.end_date }}{% if r.extensions %} (extended {{ r.extensions }}×){% endif %}</p></div>
+    <a class="btn-ghost" href="/people/{{ r.user_id }}">Full profile →</a></div>
+  <blockquote style="margin:0 0 12px;padding:10px 14px;border-left:3px solid var(--lc-good);background:#f8fbff;border-radius:6px;font-size:13px">{{ r.recommendation_note }}</blockquote>
+  <ul class="checkpoint-list" style="margin-bottom:12px">{% for k in r.checkpoints %}<li class="{{ k.state }}"><b>{{ k.label }}</b> · <span class="sig {{ 'tone-good' if k.rating == 'on_track' else 'tone-warn' if k.rating == 'at_risk' else 'tone-bad' if k.rating == 'off_track' else '' }}">{{ k.rating_label or k.state }}</span>{% if k.note %}<p style="margin:6px 0 0;font-size:12.5px">{{ k.note }}</p>{% endif %}</li>{% endfor %}</ul>
+  {% if decides %}
+  <form method="post" action="/leader/probation/{{ r.probation_id }}/decision" class="lc-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label>Note <span class="hint">Required when returning it; optional when approving.</span><textarea name="note" maxlength="2000"></textarea></label>
+    <div class="actions"><button class="button" type="submit" name="decision" value="approve">Approve: {{ r.recommendation_label|lower }}</button>
+      <button class="btn-ghost" type="submit" name="decision" value="return">Return to manager</button></div></form>
+  {% else %}<p class="lc-meta">Waiting for the business leader's decision.</p>{% endif %}
+</article>
+{% endfor %}
+
+<article class="lc-card"><h2>All probations</h2>
+  <div class="table-wrap"><table><thead><tr><th>Employee</th><th>Manager</th><th>Window</th><th>Progress</th><th>Check-ins</th><th>Status</th></tr></thead><tbody>
+  {% for r in pipeline.rows[:200] %}<tr>
+    <td><a class="text-link" href="/people/{{ r.user_id }}">{{ r.employee_name }}</a><small>{{ r.job_title or '' }}</small></td>
+    <td>{{ r.manager_name or '—' }}</td><td>{{ r.start_date }} → {{ r.end_date }}</td>
+    <td style="min-width:120px"><div class="idp-bar"><i style="width: {{ r.progress_pct }}%"></i></div><small>{{ [r.days_left, 0]|max }} days left</small></td>
+    <td>{{ r.checkpoints|selectattr('completed_at')|list|length }}/{{ r.checkpoints|length }}{% if r.checkpoints|selectattr('state', 'equalto', 'overdue')|list %} <span class="badge danger">overdue</span>{% endif %}</td>
+    <td><span class="badge {{ 'success' if r.status == 'confirmed' else 'danger' if r.status == 'not_confirmed' else 'warning' if r.attention else 'blue' }}">{{ r.status_label }}</span>{% if r.decision_due %}<small>decision due</small>{% endif %}</td></tr>
+  {% else %}<tr><td colspan="6" class="empty">No one is on probation.</td></tr>{% endfor %}
+  </tbody></table></div>
+  {% if pipeline.rows|length > 200 %}<p class="lc-meta">Showing the 200 that need attention first, of {{ pipeline.rows|length }}. Use People → "Probation action" to filter the rest.</p>{% endif %}
+</article>
+{% endblock %}

@@ -1,0 +1,48 @@
+{% extends 'base.html' %}
+{% from 'partials/skills_ai.html' import readiness_card, suggestion_review, suggest_button %}
+{% block title %}Onboard · {{ d.role.role_name }}{% endblock %}
+{% block breadcrumb %}{{ current_user.role_label }} / Job Profiles / Onboard / {{ d.role.role_name }}{% endblock %}
+{% block content %}
+{% set step = 5 if d.skills and not suggestions else 4 %}
+<a class="text-link" href="/org/job-profiles">← Job profiles</a>
+<div class="page-heading" style="margin-top:8px"><div><p class="eyebrow">ONBOARD · {{ d.role.tower }} · {{ d.role.role_grade }}{% if d.profile.department_name %} · {{ d.profile.department_name }}{% endif %}</p>
+  <h1>{{ d.role.role_name }}</h1><p>{{ d.profile.description or '' }}</p></div>
+  <a class="btn-ghost" href="/org/job-profiles/{{ d.role.role_id }}">Open the job profile →</a></div>
+<ol class="stepper" aria-label="Onboarding steps">
+  {% for n, label in [(1, 'Vertical'), (2, 'Department'), (3, 'Job profile'), (4, 'Required skills · AI'), (5, 'Ready')] %}
+  <li class="{{ 'done' if n < step or (n == 5 and readiness.pct == 100) else 'current' if n == step else '' }}" {{ 'aria-current=step' if n == step }}><span>{{ '✓' if n < step or (n == 5 and readiness.pct == 100) else n }}</span>{{ label }}</li>
+  {% endfor %}
+</ol>
+{% if notice %}<div class="flash ok" role="status">{{ notice }}</div>{% endif %}
+{% if error %}<div class="flash err" role="alert">{{ error }}</div>{% endif %}
+
+<section class="lc-grid-2 lc-section">
+  <article class="lc-card" id="ai-skills">
+    <div class="lc-card-head"><div><h2>Step 4 · Required skills</h2><p>{% if suggestions %}Agent 8's pitch for this role. Nothing applies until you decide.{% elif d.skills %}{{ d.skills|length }} skill(s) required. Ask Agent 8 again for more, or edit them on the job profile.{% else %}No skills yet. Ask Agent 8 to pitch them, or add them by hand on the job profile.{% endif %}</p></div>
+      {{ suggest_button(d.role.role_id, 'onboard', csrf_token, '✦ Pitch again' if suggestions or d.skills else '✦ Pitch skills with AI') }}</div>
+    {% if suggestions %}
+      {{ suggestion_review(suggestions, d.role.role_id, 'onboard', csrf_token, True) }}
+    {% endif %}
+    {% if d.skills %}
+    <h3 class="sub-h">Applied requirements ({{ d.skills|length }})</h3>
+    <div class="table-wrap"><table><thead><tr><th>Skill</th><th>Target</th><th>Critical</th><th>Behaviour at target</th></tr></thead><tbody>
+      {% for s in d.skills %}<tr><td><b>{{ s.skill }}</b><small>{{ s.capability or '' }}</small></td><td>L{{ s.target_level }}</td>
+        <td>{% if s.is_critical %}<span class="badge warning">Critical</span>{% else %}—{% endif %}</td><td><small>{{ s.behavior_indicator or '—' }}</small></td></tr>{% endfor %}
+    </tbody></table></div>
+    {% elif not suggestions %}<div class="lc-empty">Nothing pitched yet.</div>{% endif %}
+  </article>
+
+  <div>
+    {{ readiness_card(readiness, d.role.role_id) }}
+    <article class="lc-card" style="margin-top:16px"><h2>Step 5 · Next steps</h2>
+      <ul class="next-steps">
+        <li><a href="/org/job-profiles/{{ d.role.role_id }}">Fine-tune requirements</a><small>Change targets, add or remove skills with a recorded reason.</small></li>
+        <li>{% if current_user.role in ('admin', 'hr') %}<a href="/org/people">Place people in the department</a>{% else %}<span>Place people in the department</span>{% endif %}<small>HR attributes: department and hire date (probation starts automatically){% if current_user.role not in ('admin', 'hr') %}, set by HR{% endif %}.</small></li>
+        <li><span>SME question bank</span><small>{% if (readiness.checks|selectattr('key', 'equalto', 'questions')|first).ok %}Approved questions are in place.{% else %}SMEs are notified when the first skills apply; they generate and approve questions in <b>AI Generation</b>.{% endif %}</small></li>
+        <li><span>Resume matching</span><small>Agent 1 matches resumes to this role after the nightly re-index.</small></li>
+      </ul>
+      <a class="button secondary" href="/org/onboard">＋ Onboard another job profile</a>
+    </article>
+  </div>
+</section>
+{% endblock %}

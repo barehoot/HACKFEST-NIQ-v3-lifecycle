@@ -1,0 +1,50 @@
+{% extends 'base.html' %}{% block title %}{{ page_title }}{% endblock %}{% block breadcrumb %}Admin / Users{% endblock %}
+{% block content %}
+<div class="page-heading"><div><p class="eyebrow">PLATFORM ADMINISTRATION</p><h1>{{ page_title }}</h1><p>Real accounts and role assignment, backed by the users table. To give someone <b>HR access</b>, set their role to <i>HR Business Partner</i>; changing an employee's manager moves them to that manager's team in the leader and HR views straight away.</p></div>
+  <a class="btn-ghost" href="/admin/roles">What each role can do →</a></div>
+{% if notice %}<div class="flash ok" role="status">{{ notice }}</div>{% endif %}
+
+<div class="card table-card">
+<div class="table-wrap"><table><thead><tr><th>Name</th><th>Username</th><th>Email</th><th>Role</th><th>Manager</th><th>Update role</th></tr></thead><tbody>
+{% for u in users %}
+<tr>
+  <td><b>{{ u.full_name }}</b><br><small>{{ u.job_title }}</small></td>
+  <td>{{ u.username }}</td>
+  <td>{{ u.email }}</td>
+  <td><span class="badge {{ 'purple' if u.role == 'hr' else 'blue' }}">{{ roles.get(u.role, u.role) }}</span></td>
+  <td>{{ u.manager_id or '—' }}</td>
+  <td>
+    <form method="post" action="/admin/users/{{ u.user_id }}/role" class="form-stack" style="display:flex;gap:8px;align-items:center">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <select name="role">{% for value, label in roles.items() %}<option value="{{ value }}" {{ 'selected' if value == u.role else '' }}>{{ label }}</option>{% endfor %}</select>
+      <select name="manager_id"><option value="">No manager</option>{% for m in managers %}<option value="{{ m.user_id }}" {{ 'selected' if m.user_id == u.manager_id else '' }}>{{ m.full_name }}</option>{% endfor %}</select>
+      <button class="button secondary" type="submit">Save</button>
+    </form>
+  </td>
+</tr>
+{% else %}<tr><td colspan="6" class="empty">No users yet.</td></tr>{% endfor %}
+</tbody></table></div>
+</div>
+
+<div class="card" style="margin-top:24px;max-width:640px">
+<div class="card-label-row"><span>CREATE USER</span></div>
+<form method="post" action="/admin/users" class="form-stack">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <label>Full name<input name="full_name" required></label>
+  <div class="two-col">
+    <label>Username<input name="username" required></label>
+    <label>Email<input type="email" name="email" required></label>
+  </div>
+  <div class="two-col">
+    <label>Password<input type="password" name="password" required></label>
+    <label>Role<select name="role">{% for value, label in roles.items() %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select></label>
+  </div>
+  <div class="two-col">
+    <label>Department<input name="department"></label>
+    <label>Job title<input name="job_title"></label>
+  </div>
+  <label>Manager (for employee accounts)<select name="manager_id"><option value="">No manager</option>{% for m in managers %}<option value="{{ m.user_id }}">{{ m.full_name }}</option>{% endfor %}</select></label>
+  <button class="button primary" type="submit">Create user</button>
+</form>
+</div>
+{% endblock %}

@@ -1,0 +1,113 @@
+{% extends 'base.html' %}
+{% block title %}My Dashboard{% endblock %}
+{% block breadcrumb %}Dashboard{% endblock %}
+{% block content %}
+<section class="crextio-hero">
+  <div>
+    <p class="eyebrow">MY TALENT PROFILE</p>
+    <h1>Welcome back, {{ current_user.name }}</h1>
+    <p>
+      {% if not cycle %}Upload your resume to start your assessment journey.
+      {% elif cycle.status == 'pending_sme_setup' %}Your resume is in — an SME is setting up your assessment.
+      {% elif cycle.status in ('resume_uploaded', 'pending_sme_approval') %}Your resume is in — an SME is reviewing the generated questions.
+      {% elif cycle.status == 'ready_for_assessment' %}Your questions have been approved. You're ready to take the assessment.
+      {% elif cycle.status == 'mcq_submitted' %}Thanks for completing the questions. One more step: the workplace simulation.
+      {% elif cycle.status in ('case_study_submitted', 'pending_manager_approval') %}Your submission is with your manager for review.
+      {% elif cycle.status == 'manager_approved' %}Your manager approved your results and certified your skill levels.
+      {% elif cycle.status == 'manager_rejected' %}Your manager has reviewed your assessment and assigned next steps.
+      {% endif %}
+    </p>
+  </div>
+</section>
+
+{% if upload_error %}<div class="alert alert-danger" style="margin:16px 0">{{ upload_error }}</div>{% endif %}
+
+{% if not cycle %}
+{# upload form below #}
+
+{% elif cycle.status == 'pending_sme_setup' %}
+<section class="neo-card" style="max-width:900px;margin-top:24px">
+  <div class="card-label-row"><span>RESUME ON FILE</span><span class="status-dot">● With an SME for set-up</span></div>
+  <h2>{{ cycle.resume_filename }}</h2>
+  <p>Matched role: <b>{{ cycle.matched_role_name }}</b></p>
+  <p class="muted-copy">An SME is choosing the questions and proficiency level for your assessment. It will appear here once it's ready.</p>
+</section>
+
+{% elif cycle.status in ('resume_uploaded', 'pending_sme_approval') %}
+<section class="neo-card" style="max-width:900px;margin-top:24px">
+  <div class="card-label-row"><span>{{ 'RESUME ON FILE' if cycle.resume_filename else source_label|upper }}</span><span class="status-dot">● Awaiting SME approval</span></div>
+  <h2>{{ cycle.resume_filename }}</h2>
+  <p>Matched role: <b>{{ cycle.matched_role_name }}</b></p>
+  <p class="muted-copy">An SME is reviewing the AI-generated assessment questions for your role. Your assessment will unlock here once every question is approved.</p>
+</section>
+
+{% elif cycle.status == 'ready_for_assessment' %}
+<section class="neo-card assessment-card" style="max-width:900px;margin-top:24px">
+  <div class="card-label-row"><span>UP NEXT</span><span class="status-dot">● Ready</span></div>
+  <div class="assessment-icon">✦</div>
+  {% set titles = {'auto_baseline': 'Your baseline skill assessment', 'auto_retake': 'Retake your assessment',
+                    'auto_reassessment': 'Your re-assessment', 'promotion': 'Promotion-readiness assessment'} %}
+  <h2>{{ titles.get(cycle.match_status, 'Take your assessment') }}</h2>
+  <p>{% if cycle.match_status == 'auto_baseline' %}Your skills haven't been evaluated in Talent360i for your current role yet, so a baseline assessment for <b>{{ cycle.matched_role_name }}</b> has been assigned automatically from SME-approved questions.
+     {% elif cycle.match_status == 'auto_retake' %}Your manager sent your last assessment back, so a fresh one for <b>{{ cycle.matched_role_name }}</b> has been assigned from SME-approved questions. Answer in your own words.
+     {% elif cycle.match_status == 'auto_reassessment' %}You've completed your skill-gap training. This re-assessment for <b>{{ cycle.matched_role_name }}</b> focuses on those skills.
+     {% elif cycle.match_status == 'promotion' %}Your manager asked for a promotion-readiness assessment for <b>{{ cycle.matched_role_name }}</b>, the next role on your career path. Every question is SME-approved.
+     {% elif cycle.match_status == 'sme_assigned' %}Assigned by an SME for <b>{{ cycle.matched_role_name }}</b>. Every question is SME-approved.
+     {% else %}Matched role: <b>{{ cycle.matched_role_name }}</b>. All questions have been SME-approved.{% endif %}</p>
+  <a class="dark-button" href="/employee/assessment/{{ cycle.cycle_id }}">Start assessment <span>↗</span></a>
+</section>
+
+{% elif cycle.status == 'mcq_submitted' %}
+<section class="neo-card assessment-card" style="max-width:900px;margin-top:24px">
+  <div class="card-label-row"><span>UP NEXT</span><span class="status-dot">● Ready</span></div>
+  <div class="assessment-icon">◇</div>
+  <h2>Workplace simulation</h2>
+  <p>Work through realistic scenarios; an AI assessor asks follow-up questions to understand how you'd handle them.</p>
+  <a class="dark-button" href="/employee/evidence/{{ cycle.cycle_id }}">Continue <span>↗</span></a>
+</section>
+
+{% elif cycle.status in ('case_study_submitted', 'pending_manager_approval') %}
+<section class="neo-card" style="max-width:900px;margin-top:24px">
+  <div class="card-label-row"><span>{{ 'RESUME ON FILE' if cycle.resume_filename else 'SUBMITTED' }}</span><span class="status-dot">● Result pending</span></div>
+  <h2>{{ cycle.resume_filename or cycle.matched_role_name }}</h2>
+  <p>Matched role: <b>{{ cycle.matched_role_name }}</b></p>
+  <p class="muted-copy">Your assessment and workplace-simulation evidence have been submitted. Your manager is reviewing your results — check back soon.</p>
+</section>
+
+{% elif cycle.status == 'manager_approved' %}
+<section class="neo-card learning-card-new" style="max-width:900px;margin-top:24px">
+  <div class="card-label-row"><span>APPROVED · LEVELS CERTIFIED</span><a href="/employee/skills">View my skills ↗</a></div>
+  <h2>Your results were approved</h2>
+  <p>Your manager certified {{ certified|length }} skill level(s) for {{ cycle.matched_role_name }}{% if certified %}: {% for c in certified %}{{ c.skill }} L{{ c.level }}{{ ', ' if not loop.last }}{% endfor %}{% endif %}. They now show as validated on your skill profile.</p>
+  {% if outline %}<p class="muted-copy">Skill-up training to take you to the next level has been booked on your calendar.</p>{% endif %}
+  <a class="dark-button" href="/employee/learning">View my training plan <span>↗</span></a>
+</section>
+
+{% elif cycle.status == 'manager_rejected' %}
+<section class="neo-card" style="max-width:900px;margin-top:24px">
+  {% if cycle.manager_decision == 'sent_back' %}
+  <div class="card-label-row"><span>SENT BACK TO RETAKE</span></div>
+  <h2>{{ cycle.matched_role_name }}</h2>
+  <p class="muted-copy">Your manager asked you to retake this assessment.{% if cycle.manager_decision_notes %} Note: {{ cycle.manager_decision_notes }}{% endif %} A fresh one will appear here once SME-approved questions are available.</p>
+  {% else %}
+  <div class="card-label-row"><span>SKILL-GAP TRAINING ASSIGNED</span><a href="/employee/learning">View training ↗</a></div>
+  <h2>{{ cycle.matched_role_name }}</h2>
+  <p class="muted-copy">Your manager reviewed your assessment and assigned training to close the gaps it found.{% if cycle.manager_decision_notes %} Note: {{ cycle.manager_decision_notes }}{% endif %} When you've completed the sessions, a re-assessment is assigned automatically.</p>
+  {% if outline %}<a class="dark-button" href="/employee/learning">View my training sessions <span>↗</span></a>{% endif %}
+  {% endif %}
+</section>
+{% endif %}
+
+{% if can_upload %}
+<section class="neo-card" style="max-width:900px;margin-top:24px">
+  <div class="card-label-row"><span>{{ 'UPLOAD YOUR RESUME' if not cycle else 'START A NEW ASSESSMENT' }}</span><span class="status-dot">● {{ api_mode|upper }}</span></div>
+  <form method="post" enctype="multipart/form-data" action="/employee/dashboard/upload">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label for="resume"><strong>Resume / CV</strong></label>
+    <input id="resume" name="resume" type="file" accept=".pdf,.docx,.txt" required style="display:block;margin:10px 0 12px">
+    <p class="muted-copy" style="margin:0 0 18px">We match your resume to a role. An SME then sets up your assessment — which skills, how many questions and at what proficiency level.</p>
+    <button class="dark-button" type="submit">Upload resume <span>↗</span></button>
+  </form>
+</section>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,72 @@
+{% extends 'base.html' %}
+{% block title %}Build Assessment{% endblock %}
+{% block breadcrumb %}SME / Assign Assessments / Build{% endblock %}
+{% block content %}
+{% set sel = selection %}
+<div class="page-heading"><div><a class="text-link" href="/sme/assign">← Back to assignments</a>
+  <p class="eyebrow">ASSESSMENT BUILDER</p><h1>{{ role.role_name }}</h1>
+  <p>{% if cycle %}For <b>{{ cycle.employee_name }}</b>'s resume submission ({{ cycle.resume_filename }}), matched to this role by Agent 1.{% else %}Assign a bank-built assessment to employees in this role.{% endif %}
+  The selection agent has proposed questions from the bank — adjust the ticks, then deploy.</p></div></div>
+{% if error %}<div class="flash err" role="alert"><b>Not deployed:</b> {{ error }}</div>{% endif %}
+
+<form method="get" action="/sme/assessments/new" class="card viz-card builder-config">
+  {% if cycle %}<input type="hidden" name="cycle" value="{{ cycle.cycle_id }}">{% endif %}
+  {% for e in preselected %}<input type="hidden" name="employee" value="{{ e }}">{% endfor %}
+  <label>Role<select name="role">{% for r in roles %}<option value="{{ r.role_id }}" {{ 'selected' if r.role_id == role.role_id }}>{{ r.tower }} · {{ r.role_name }}</option>{% endfor %}</select></label>
+  <label>Number of questions<input type="number" name="count" min="1" max="20" value="{{ count }}"></label>
+  <label>Proficiency level<select name="level"><option value="">Each skill's role target</option>{% for n in [1, 2, 3, 4, 5] %}<option value="{{ n }}" {{ 'selected' if level == n }}>L{{ n }}</option>{% endfor %}</select></label>
+  <button class="button secondary" type="submit">Re-run selection</button>
+</form>
+
+<form method="post" action="/sme/assessments/deploy">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="role_id" value="{{ role.role_id }}">
+  <input type="hidden" name="count" value="{{ count }}"><input type="hidden" name="level" value="{{ level or '' }}">
+  {% if cycle %}<input type="hidden" name="cycle_id" value="{{ cycle.cycle_id }}">{% endif %}
+
+  <div class="card table-card" style="margin:12px 0">
+    <div class="card-toolbar"><div><h2>Proposed by the selection agent · {{ sel.selected|length }} of {{ count }}</h2><p>Chosen from {{ sel.available }} approved question(s) for this role: priority skills first, one per skill before any repeats, closest level, least-used first.</p></div></div>
+    <div class="table-wrap"><table>
+      <thead><tr><th></th><th>Skill</th><th>Level</th><th>Question</th><th>Why</th></tr></thead>
+      <tbody>
+      {% for q in sel.selected %}
+      <tr><td><input type="checkbox" name="question_ids" value="{{ q.question_id }}" checked aria-label="Include question on {{ q.skill }}"></td>
+        <td><b>{{ q.skill }}</b></td><td>L{{ q.target_level }}</td>
+        <td class="question-snippet" title="{{ q.question_text }}"><a class="text-link" href="/sme/questions/{{ q.question_id|urlencode }}" target="_blank" rel="noopener">{{ q.question_text }}</a></td>
+        <td><small>{{ q.reason }}</small></td></tr>
+      {% else %}<tr><td colspan="5" class="empty">No approved questions for this role yet. <a class="text-link" href="/sme/generate?role={{ role.role_id|urlencode }}">Generate some with AI</a>, approve them, then come back.</td></tr>{% endfor %}
+      </tbody>
+    </table></div>
+    {% if sel.uncovered %}<p class="muted-copy" style="padding:0 18px 14px;font-size:11.5px"><b>No bank questions yet for:</b> {{ sel.uncovered|join(', ') }}. <a class="text-link" href="/sme/generate?role={{ role.role_id|urlencode }}">Generate questions for these skills →</a></p>{% endif %}
+  </div>
+
+  {% if sel.others %}
+  <details class="card viz-card" style="margin-bottom:12px"><summary><b>Other approved questions for this role ({{ sel.others|length }})</b> — tick to add</summary>
+    <div class="table-wrap"><table>
+      <tbody>{% for q in sel.others %}<tr><td><input type="checkbox" name="question_ids" value="{{ q.question_id }}" aria-label="Add question on {{ q.skill }}"></td><td><b>{{ q.skill }}</b></td><td>L{{ q.target_level }}</td><td class="question-snippet" title="{{ q.question_text }}">{{ q.question_text }}</td><td><small>used {{ q.times_used }}×</small></td></tr>{% endfor %}</tbody>
+    </table></div>
+  </details>
+  {% endif %}
+
+  {% if not cycle %}
+  <div class="card table-card" style="margin-bottom:12px">
+    <div class="card-toolbar"><div><h2>Assign to</h2><p>Employees in this role. People with an assessment already in progress can't be assigned another.</p></div></div>
+    <div class="table-wrap"><table>
+      <thead><tr><th></th><th>Employee</th><th>TNI baseline</th><th>Current assessment</th></tr></thead>
+      <tbody>
+      {% for e in employees %}
+      <tr><td><input type="checkbox" name="employee_ids" value="{{ e.user_id }}" {{ 'checked' if e.user_id in preselected and not e.active }} {{ 'disabled' if e.active }} aria-label="Assign to {{ e.name }}"></td>
+        <td><b>{{ e.name }}</b><small>{{ e.user_id }}</small></td>
+        <td>{% if e.total %}{{ e.assessed }} / {{ e.total }} assessed{% else %}<span class="muted">No TNI baseline</span>{% endif %}{% if e.needs_baseline %}<small>Needs a baseline</small>{% endif %}</td>
+        <td>{{ 'In progress' if e.active else (e.stage or 'None')|replace('_', ' ') }}</td></tr>
+      {% else %}<tr><td colspan="4" class="empty">No employees in this role.</td></tr>{% endfor %}
+      </tbody>
+    </table></div>
+  </div>
+  {% endif %}
+
+  <div class="card viz-card builder-deploy">
+    <label>Due date <small>(optional — books it on the employee's calendar)</small><input type="date" name="due_date" min="{{ today }}"></label>
+    <button class="button" type="submit" {% if not sel.available %}disabled{% endif %}>Deploy assessment</button>
+  </div>
+</form>
+{% endblock %}

@@ -1,0 +1,30 @@
+{% extends 'base.html' %}
+{% block title %}Internal Jobs{% endblock %}
+{% block breadcrumb %}{{ current_user.role_label }} / Internal Jobs{% endblock %}
+{% block content %}
+<div class="page-heading"><div><p class="eyebrow">ORGANISATION · SMARTRECRUITERS INTERNAL POSTINGS</p><h1>Internal jobs</h1>
+  <p>Open internal postings, each mapped to a job profile so employees see their fit and hiring managers get a talent pool. Titles are matched automatically; your mapping always wins and survives later syncs. A posting with no profile can be onboarded as one from its JD.</p></div>
+  <form method="post" action="/org/jobs/sync" data-busy-label="Syncing…"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="btn-ghost" type="submit">↻ Sync now</button></form></div>
+{% if notice %}<div class="flash ok" role="status">{{ notice }}</div>{% endif %}
+{% if error %}<div class="flash err" role="alert">{{ error }}</div>{% endif %}
+
+<div class="metric-grid compact">
+  <article class="metric-card"><p>Source</p><strong style="font-size:16px">{{ 'SmartRecruiters' if connected else 'Demo feed' }}</strong><small>{{ ('company ' ~ company) if connected else 'Set SMARTRECRUITERS_COMPANY_ID to connect' }}</small></article>
+  <article class="metric-card"><p>Open postings</p><strong>{{ state.open }}</strong><small>Last sync {{ (state.fetched_at or '—')[:16].replace('T', ' ') }} UTC</small></article>
+  <article class="metric-card"><p>Mapped to a job profile</p><strong>{{ postings|selectattr('status', 'equalto', 'open')|selectattr('role_id')|list|length }}</strong><small>{{ postings|selectattr('status', 'equalto', 'open')|rejectattr('role_id')|list|length }} still unmapped</small></article>
+</div>
+
+<div class="card table-card"><div class="table-wrap"><table><thead><tr><th>Posting</th><th>Department</th><th>Job profile</th><th></th></tr></thead><tbody>
+{% for p in postings %}
+<tr class="{{ 'muted-row' if p.status == 'closed' }}"><td><a class="text-link" href="/jobs/{{ p.posting_id }}"><b>{{ p.title }}</b></a><small>{{ p.posting_id }} · {{ p.location or '—' }}{% if p.status == 'closed' %} · closed{% endif %}</small></td>
+  <td>{{ p.department or '—' }}</td>
+  <td><form method="post" action="/org/jobs/{{ p.posting_id }}/map" class="inline-row"><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <label class="visually-hidden" for="map-{{ loop.index }}">Job profile</label>
+      <select id="map-{{ loop.index }}" name="role_id"><option value="">— Not mapped —</option>
+        {% for group in roles|groupby('vertical') %}<optgroup label="{{ group.grouper }}">{% for r in group.list %}<option value="{{ r.role_id }}" {{ 'selected' if r.role_id == p.role_id }}>{{ r.role_name }}</option>{% endfor %}</optgroup>{% endfor %}</select>
+      <button class="btn-ghost" type="submit">Save</button></form>
+    <small>{% if p.mapped_by == 'auto' %}Matched by title{% elif p.mapped_by %}Mapped by HR{% endif %}</small></td>
+  <td>{% if not p.role_id %}<a class="btn-ghost" href="/org/onboard?posting={{ p.posting_id }}">Onboard as job profile</a>{% else %}<a class="text-link" href="/talent?role={{ p.role_id }}">Talent pool →</a>{% endif %}</td></tr>
+{% else %}<tr><td colspan="4" class="empty">No postings yet. Press Sync now.</td></tr>{% endfor %}
+</tbody></table></div></div>
+{% endblock %}

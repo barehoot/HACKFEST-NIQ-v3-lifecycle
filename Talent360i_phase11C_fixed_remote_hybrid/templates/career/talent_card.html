@@ -1,0 +1,54 @@
+{% extends 'base.html' %}
+{% block title %}{{ c.name }} · {{ role.role_name }}{% endblock %}
+{% block breadcrumb %}{{ current_user.role_label }} / Talent Pool / {{ c.name }}{% endblock %}
+{% block content %}
+{% set x = c.analysis %}
+<a class="text-link" href="/talent?role={{ role.role_id }}">← Talent pool for {{ role.role_name }}</a>
+<section class="profile-hero tone-{{ c.tone }}" style="margin-top:10px">
+  <span class="pc-avatar" aria-hidden="true">{{ c.name.split()[:2]|map('first')|join|upper }}</span>
+  <div><p class="eyebrow" style="margin:0">TALENT CARD · {{ role.role_name|upper }}</p><h1>{{ c.name }}</h1>
+    <p>{{ c.job_title or '—' }}{% if c.department %} · {{ c.department }}{% endif %}{% if x.cross_vertical %} · moving {{ x.current.tower if x.current else '' }} → {{ role.tower }}{% endif %}</p>
+    <div style="display:flex;flex-wrap:wrap;gap:8px">
+      {% if c.application %}<span class="sig tone-good">Applied {{ c.application.created_at[:10] }} · {{ c.application.status }}</span>{% endif %}
+      {% if c.aspiration %}<span class="sig tone-info">Aspires to this role</span>{% endif %}
+      {% if c.potential %}<span class="sig">Potential fit (hasn't applied)</span>{% endif %}
+      {% if c.band %}<span class="band-chip tone-{{ c.tone }}">{{ c.band }}{% if c.tier %} <small>· {{ c.tier }}</small>{% endif %}</span>{% else %}<span class="sig">Performance private</span>{% endif %}</div></div>
+  <span class="fit-pct lg tone-{{ 'best' if x.assessed_pct >= 80 else 'good' if x.assessed_pct >= 50 else 'low' }}">{{ x.assessed_pct }}%</span>
+</section>
+{% if notice %}<div class="flash ok" role="status">{{ notice }}</div>{% endif %}
+{% if error %}<div class="flash err" role="alert">{{ error }}</div>{% endif %}
+
+<section class="lc-grid-2 lc-section">
+  <article class="lc-card"><h2>Skills against {{ role.role_name }}</h2>
+    <p class="lc-sub">{{ x.met }}/{{ x.total }} at target ({{ x.assessed_pct }}% on assessed levels, {{ x.pct }}% with CV claims) · readiness <b>{{ c.promotion or 'shown to their managers only' }}</b>{% if x.critical_missed %} · critical gaps: {{ x.critical_missed|join(', ') }}{% endif %}</p>
+    <div class="table-wrap"><table><thead><tr><th>Skill</th><th>Target</th><th>Level</th><th>Gap</th></tr></thead><tbody>
+      {% for r in x.rows %}<tr><td><b>{{ r.skill }}</b>{% if r.is_critical %}<small>Critical</small>{% endif %}</td><td>L{{ r.target }}</td>
+        <td>{% if r.level is none %}<span class="src src-none">Not assessed</span>{% else %}<span class="src src-{{ r.source }}">L{{ r.level }} · {{ r.source_label }}</span>{% endif %}</td>
+        <td>{% if r.met %}<span class="badge success">✓</span>{% else %}−{{ r.gap_to_close }}{% if r.course %} <small>{{ r.course.short_title }}</small>{% endif %}{% endif %}</td></tr>{% endfor %}
+    </tbody></table></div>
+    <p class="lc-meta">Skill-up path to target: about {{ x.weeks_total }} weeks.</p>
+  </article>
+  <div>
+    {% if c.application %}<article class="lc-card"><h2>Application</h2>
+      <blockquote class="quote-box">{{ c.application.note }}</blockquote>
+      {% if c.application.status == 'submitted' %}
+      <form method="post" action="/talent/applications/{{ c.application.application_id }}/decision" class="lc-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <label>Note to the applicant <span class="hint">Required when declining</span><textarea name="note" maxlength="600"></textarea></label>
+        <div class="actions"><button class="button" type="submit" name="decision" value="shortlisted">Shortlist</button><button class="btn-danger" type="submit" name="decision" value="declined">Decline</button></div></form>
+      {% else %}<p class="lc-meta">{{ c.application.status|title }}{% if c.application.decided_by_name %} by {{ c.application.decided_by_name }}{% endif %}{% if c.application.decision_note %}: “{{ c.application.decision_note }}”{% endif %}</p>{% endif %}
+    </article>{% endif %}
+    {% if c.aspiration and c.aspiration.note and c.aspiration.note != 'Applied' %}<article class="lc-card" style="margin-top:16px"><h2>Why they want it</h2><blockquote class="quote-box">{{ c.aspiration.note }}</blockquote></article>{% endif %}
+    {% if c.cv_claims %}<article class="lc-card" style="margin-top:16px"><h2>CV evidence ({{ c.cv_claims|length }})</h2>
+      <p class="lc-sub">Claimed by the candidate's CV, quoted verbatim; not validated.</p>
+      <ul class="sum-list">{% for cl in c.cv_claims %}<li><b>{{ cl.skill }}</b> L{{ cl.level }}: <small>“{{ cl.quote }}”</small></li>{% endfor %}</ul></article>{% endif %}
+    <article class="lc-card" style="margin-top:16px"><h2>Shortlist</h2>
+      {% if c.shortlisted_by %}<p class="lc-meta">Shortlisted by {{ c.shortlisted_by|join(', ') }}.</p>{% endif %}
+      {% if not c.shortlisted_by_me %}
+      <form method="post" action="/talent/{{ role.role_id }}/{{ c.user_id }}/shortlist" class="lc-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <label>Message to {{ c.name.split()[0] }} <textarea name="note" maxlength="600" placeholder="I'd like to talk to you about the {{ role.role_name }} role."></textarea></label>
+        <div class="actions"><button class="button" type="submit">Shortlist & let them know</button></div></form>{% endif %}
+      {% if can_open_profile %}<p style="margin-top:10px"><a class="text-link" href="/people/{{ c.user_id }}">Open the full 360 profile →</a></p>{% endif %}
+    </article>
+  </div>
+</section>
+{% endblock %}

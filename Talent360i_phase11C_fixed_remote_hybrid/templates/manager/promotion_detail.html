@@ -1,0 +1,61 @@
+{% extends 'base.html' %}
+{% import 'partials/promotion.html' as pr %}
+{% block title %}Promotion Profile{% endblock %}
+{% block breadcrumb %}Manager / Promotion Readiness / {{ row.name }}{% endblock %}
+{% block content %}
+<div class="page-heading"><div><a class="text-link" href="/manager/promotions">← Back to promotion readiness</a>
+  <p class="eyebrow">PROMOTION PROFILE</p><h1>{{ row.name }}</h1>
+  <p>{{ row.current.role_name }} ({{ row.current.role_grade }}){% if row.next %} → next role <b>{{ row.next.role_name }}</b> ({{ row.next.role_grade }}){% endif %}</p></div>
+  {% if row.next %}{{ pr.band_badge(row.band, row.pct) }}{% endif %}</div>
+{% if notice %}<div class="flash ok" role="status">{{ notice }}</div>{% endif %}
+{% if error %}<div class="flash err" role="alert"><b>Not done:</b> {{ error }}</div>{% endif %}
+
+{% if not row.next %}
+<div class="notice-card">{{ row.current.role_name }} is the top of the modelled ladder for {{ row.current.tower }}; there is no next role to assess against.</div>
+{% else %}
+<div class="detail-layout">
+  <article class="card table-card">
+    <div class="card-toolbar"><div><h2>Readiness for {{ row.next.role_name }}</h2><p>{{ row.met }} of {{ row.total }} skills at target · {{ row.validated }} validated by an approved assessment{% if row.unknown %} · {{ row.unknown }} not assessed{% endif %}{% if row.critical_missed %} · critical skills short: {{ row.critical_missed|join(', ') }}{% endif %}.</p></div></div>
+    {{ pr.readiness_table(row.rows, row.next) }}
+  </article>
+  <aside class="detail-sidebar">
+    <div class="card sidebar-box">
+      <p class="eyebrow">STEP 1 · VALIDATE</p>
+      <h2>Promotion-readiness assessment</h2>
+      {% if row.active %}<p class="muted-copy">An assessment is already in progress ({{ row.active.matched_role_name }}, {{ row.active.status|replace('_', ' ') }}).</p>
+      {% elif not row.bank_for_next %}<p class="muted-copy">No SME-approved questions for {{ row.next.role_name }} yet — ask an SME to add some to the question bank.</p>
+      {% else %}
+      <p class="muted-copy">Builds an assessment for {{ row.next.role_name }} from the SME-approved question bank ({{ row.bank_for_next }} questions), focused on the skills not yet at target, with the workplace simulation. You approve the result as usual; certified levels count towards readiness.</p>
+      <form method="post" action="/manager/promotions/{{ row.user_id }}/assess"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="button" type="submit">Assign promotion assessment</button></form>
+      {% endif %}
+      {% if row.promotion_cycle %}<p class="muted-copy"><small>Latest promotion assessment: {{ row.promotion_cycle.manager_decision|decision_label if row.promotion_cycle.manager_decision else row.promotion_cycle.status|replace('_', ' ') }} ({{ row.promotion_cycle.updated_at[:10] }}).</small></p>{% endif %}
+    </div>
+    <div class="card sidebar-box">
+      <p class="eyebrow">STEP 2 · NOMINATE</p>
+      <h2>Send profile to leadership</h2>
+      {% set n = row.nomination %}
+      {% if n and n.status == 'pending' %}
+        <p class="muted-copy">Sent on {{ n.created_at[:10] }} — with leadership for review.</p><p class="muted-copy">“{{ n.manager_note }}”</p>
+      {% else %}
+        {% if n %}<div class="flash {{ 'ok' if n.status == 'approved' else 'err' }}" role="status">{{ 'Approved' if n.status == 'approved' else 'Declined' }} by {{ n.leader_name }} on {{ (n.decided_at or '')[:10] }}{% if n.leader_note %}: “{{ n.leader_note }}”{% endif %}</div>{% endif %}
+        {% if n and n.status == 'approved' %}<p class="muted-copy">Recorded for HR to action.</p>
+        {% elif not row.evaluated %}<p class="muted-copy">Available once you have approved at least one of {{ row.name }}'s assessments, so the profile carries validated evidence.</p>
+        {% else %}
+        <p class="muted-copy">The leader sees this readiness table, the certified levels, every assessment (including AI-use flags) and your note.{% if row.band != 'Ready' %} <b>Readiness is {{ row.band|lower }}</b> — say why you are nominating now.{% endif %}</p>
+        <form method="post" action="/manager/promotions/{{ row.user_id }}/nominate">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <textarea name="note" rows="4" maxlength="2000" required minlength="20" placeholder="Why this person is ready for {{ row.next.role_name }}: evidence, scope they already carry, development still planned…"></textarea>
+          <button class="button" type="submit">Send profile for promotion review</button>
+        </form>
+        {% endif %}
+      {% endif %}
+    </div>
+  </aside>
+</div>
+{% endif %}
+
+<div class="viz-grid-2" style="margin-top:12px">
+  <article class="card table-card"><div class="card-toolbar"><div><h2>Assessment history</h2><p>Every Talent360i assessment and your decision on it.</p></div></div>{{ pr.history_table(profile.history) }}</article>
+  <article class="card viz-card"><div class="viz-head"><div><h2>Certified levels</h2><p>Skill levels you validated from approved assessments.</p></div></div>{{ pr.certified_list(profile.certified) }}</article>
+</div>
+{% endblock %}

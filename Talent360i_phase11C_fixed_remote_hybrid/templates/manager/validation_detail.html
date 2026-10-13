@@ -1,0 +1,159 @@
+{% extends 'base.html' %}
+{% import 'partials/evidence.html' as ev %}
+{% block title %}Validation Detail{% endblock %}
+{% block breadcrumb %}Manager / Validation Queue / {{ cycle.employee_name }}{% endblock %}
+{% block content %}
+{% set score = cycle.mcq_score %}
+{% set evidence = cycle.evidence_report %}
+{% set level_names = ['Not assessed', 'Awareness', 'Working Knowledge', 'Proficient', 'Advanced', 'Expert / Strategic'] %}
+
+<div class="page-heading">
+  <div><a class="text-link" href="/manager/validations">← Back to queue</a>
+    <p class="eyebrow">MANAGER GATE</p><h1>{{ cycle.employee_name }}</h1>
+    <p>{{ cycle.matched_role_name }}{% if cycle.matched_role_grade %} · {{ cycle.matched_role_grade }}{% endif %}
+      · <span class="badge {{ 'purple' if kind.kind == 'promotion' else 'blue' }}">{{ kind.label }}</span>
+      {% if current_role and kind.kind != 'current_role' %}<small class="muted"> (currently {{ current_role.role_name }})</small>{% endif %}</p>
+  </div>
+  {% if awaiting %}<span class="badge warning">{{ 'Re-review requested' if rereview else 'Pending manager approval' }}</span>
+  {% elif decided %}<span class="badge {{ 'success' if cycle.status == 'manager_approved' else 'danger' }}">Decided · {{ cycle.manager_decision|decision_label }}</span>
+  {% else %}<span class="badge blue">In progress</span>{% endif %}
+</div>
+{% if notice %}<div class="flash ok" role="status">{{ notice }}</div>{% endif %}
+{% if stage %}<div class="flash" role="status"><b>Not submitted yet:</b> {{ stage }}. It joins your validation queue as soon as {{ cycle.employee_name }} submits the workplace simulation.</div>{% endif %}
+{% if decided %}<div class="flash" role="status"><b>Decided {{ (cycle.updated_at or '')[:10] }}:</b> {{ cycle.manager_decision|decision_label }}{% if cycle.manager_decision_notes %} — “{{ cycle.manager_decision_notes }}”{% endif %}. This is a read-only record; a leader can send it back for re-review.</div>{% endif %}
+{% if evidence_pending %}
+<div class="flash warn evidence-pending" role="status">
+  <div><b>Agent 4's evidence report is still being prepared.</b> The AI service was busy when {{ cycle.employee_name }} submitted, so it retries automatically in the background. The full conversation is below; you can decide now with a short rationale, or wait for the report.</div>
+  <form method="post" action="/manager/validations/{{ cycle.cycle_id }}/evidence" class="inline-form" data-busy-label="Agent 4 is reading the simulation… this can take a minute">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="btn-ai" type="submit">✦ Generate report now</button></form>
+</div>
+{% endif %}
+{% if rereview %}
+<div class="flash err" role="status"><b>Leader calibration — re-review requested</b> by {{ rereview.leader_name }} ({{ rereview.created_at[:10] }}). Your earlier decision was <b>{{ rereview.manager_decision|decision_label }}</b>{% if rereview.manager_note %} (“{{ rereview.manager_note }}”){% endif %}.<br>Leader's note: “{{ rereview.note }}”. Any levels it certified and training it booked have been withdrawn; please look at the evidence again and decide.</div>
+{% endif %}
+<div class="notice-card"><b>Decision boundary:</b> Agents never decide for the candidate. The score, evidence and recommendation below are proposals; you make the call.</div>
+{% if error %}<div class="flash err" role="alert" id="decision-error"><b>Not recorded:</b> {{ error }}</div>{% endif %}
+
+<div class="detail-layout">
+  <article class="card validation-card">
+    <div class="section-heading"><div><h2>Assessment report</h2><p>MCQ score, workplace-simulation evidence and role compatibility. The full conversation with the AI assessor follows the evidence.</p></div></div>
+    {{ ev.evidence_report(evidence, cycle) }}
+    {{ ev.conversation(conversations) }}
+    {% if coding_attempts %}
+    <div class="section-heading" style="margin-top:18px"><div><h2>Coding scenario{{ 's' if coding_attempts|length > 1 }}</h2><p>Triggered by the resume. Reviewed against the SME's rubric; the code was never run.</p></div></div>
+    {% for a in coding_attempts %}
+    <details class="lc-disclosure" style="margin-bottom:10px" open>
+      <summary><span>{{ a.title }} <small class="muted">· {{ a.language }}</small></span>
+        <span class="sig {{ 'tone-good' if a.review_status == 'sme_reviewed' else 'tone-warn' if a.review_status == 'pending_review' else 'tone-info' }}">{% if a.review_status == 'sme_reviewed' %}SME score {{ a.sme_score }}/5{% elif a.review_status == 'ai_reviewed' %}AI-reviewed · awaiting SME{% else %}Awaiting SME review{% endif %}</span></summary>
+      <div>
+        {% if a.review and a.review.scores %}<div class="rubric-scores">{% for k, v in a.review.scores.items() %}<div>{{ k|replace('_', ' ')|title }}<b>{{ v }}/5</b></div>{% endfor %}</div>
+          <p style="font-size:12.5px"><span class="ai-tag">Agent 4</span> <b>{{ (a.review.verdict or '')|replace('_', ' ')|title }}</b> · {{ a.review.summary }}</p>{% endif %}
+        {% if a.review and a.review.flags %}<p>{% for f in a.review.flags %}<span class="sig tone-warn" style="margin-right:4px">{{ f|replace('_', ' ') }}</span>{% endfor %}</p>{% endif %}
+        {% if a.paste_chars %}<p class="lc-meta">⚠ {{ a.paste_chars }} characters were pasted into the answer.</p>{% endif %}
+        {% if a.sme_note %}<p style="font-size:12.5px"><b>SME ({{ a.reviewer_name or 'reviewer' }}):</b> {{ a.sme_note }}</p>{% endif %}
+        <pre class="code">{{ a.code }}</pre>
+      </div>
+    </details>
+    {% endfor %}
+    {% endif %}
+  </article>
+
+  <aside class="detail-sidebar">
+    <div class="card sidebar-box">
+      <p class="eyebrow">GOVERNANCE NOTES</p>
+      {% if governance_notes %}
+      <ul class="notes-list">
+        <li><b>Role match:</b> {{ governance_notes.match_status|replace('_',' ')|title if governance_notes.match_status else '—' }}</li>
+        <li><b>SME question review:</b> {{ governance_notes.questions_approved }} approved
+          {%- if governance_notes.questions_rejected %}, {{ governance_notes.questions_rejected }} rejected{% endif %}
+          {%- if governance_notes.questions_pending %}, {{ governance_notes.questions_pending }} still pending{% endif %}
+          {% if governance_notes.reviewer_names %} — by {{ governance_notes.reviewer_names|join(', ') }}{% endif %}</li>
+        <li><b>MCQ assessment:</b> {{ 'Submitted' if governance_notes.has_mcq_score else 'Not yet submitted' }}</li>
+        <li><b>Case study &amp; evidence:</b> {{ 'Submitted' if governance_notes.has_evidence_report else 'Submitted · AI report pending' if evidence_pending else 'Not yet submitted' }}</li>
+        <li><b>Cycle opened:</b> {{ governance_notes.created_at }}</li>
+        <li><b>Last updated:</b> {{ governance_notes.updated_at }}</li>
+        <li><b>Current status:</b> {{ governance_notes.status|replace('_',' ')|title }}</li>
+        {% if governance_notes.manager_decision %}
+        <li><b>Prior manager decision:</b> {{ governance_notes.manager_decision|title }}{% if governance_notes.manager_decision_notes %} — “{{ governance_notes.manager_decision_notes }}”{% endif %}</li>
+        {% endif %}
+      </ul>
+      {% else %}
+      <p class="muted">No governance data available for this cycle.</p>
+      {% endif %}
+    </div>
+
+    <div class="card sidebar-box">
+      <p class="eyebrow">LEARNING GAP</p>
+      {% if dev_plan_error %}
+        <p class="muted">Temporarily unavailable — the AI planning step could not complete. The assessment report is unaffected.</p>
+      {% elif not dev_plan or dev_plan.status in ('assessment_pending', 'no_gaps_at_target') %}
+        <p class="muted">
+          {% if dev_plan and dev_plan.status == 'no_gaps_at_target' %}Already at or above target level for every assessed skill.
+          {% elif dev_plan and dev_plan.status == 'assessment_pending' %}Not enough assessed skills yet to determine gaps.
+          {% else %}Not available for this cycle.{% endif %}
+        </p>
+      {% else %}
+        {% set gaps = dev_plan.all_confirmed_gaps or [] %}
+        <p class="muted">{{ gaps|length }} skill gap(s) identified{% if dev_plan.duration_estimate %} · ~{{ dev_plan.duration_estimate.estimated_weeks_one_at_a_time }} wks to close{% endif %}</p>
+        {% for gap in gaps %}
+        {% set cur = gap.current_level or 0 %}
+        {% set curName = level_names[cur] if cur is not none and cur < 6 else '—' %}
+        <div class="learning-row">
+          <span class="learning-icon">{{ '!' if gap.is_critical else '•' }}</span>
+          <div><b>{{ gap.skill }}</b><small>Current: L{{ cur }} · {{ curName }} → Target: L{{ gap.target_level }} · {{ gap.target_level_name }} ({{ gap.gap_severity }})</small></div>
+        </div>
+        {% endfor %}
+        {% if dev_plan.never_assessed %}
+        <p class="muted"><i>{{ dev_plan.never_assessed|length }} skill(s) not covered by this assessment.</i></p>
+        {% endif %}
+      {% endif %}
+    </div>
+  </aside>
+</div>
+
+{% if awaiting %}
+<form action="/manager/validations/{{ cycle.cycle_id }}/decision" method="post" class="card validation-card decision-card" id="decision" data-busy-label="Recording the decision and preparing the training outline…">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <div class="section-heading" style="margin-top:0"><div><h2>Outcome &amp; decision</h2>
+    <p>Each skill against the level this assessment tested. A skill counts as demonstrated at ≥70% on its MCQ questions with credible simulation evidence and no high AI-use risk.</p></div>
+    <span class="badge {{ 'success' if outcome.band == 'strong' else 'danger' }}">{{ 'Strong result' if outcome.band == 'strong' else 'Low result' }}</span></div>
+  <div class="recommend {{ outcome.band }}">
+    <b>Recommended: {{ 'Approve and certify the tested levels' if outcome.recommendation == 'approved' else 'Reject and assign skill-gap training' }}</b>
+    <small>{{ outcome.reasons|join(' · ') }}</small>
+  </div>
+  <div class="table-wrap"><table class="outcome-table">
+    <thead><tr><th>Certify</th><th>Skill</th><th>Level tested</th><th>MCQ</th><th>Simulation</th><th>AI-use</th><th>Result</th><th>Current → if certified</th></tr></thead>
+    <tbody>
+    {% for r in outcome.rows %}
+    <tr class="{{ 'ok' if r.demonstrated else 'short' }}">
+      <td><input type="checkbox" name="certify" value="{{ r.skill }}" {{ 'checked' if r.demonstrated }} aria-label="Certify L{{ r.tested_level }} in {{ r.skill }}"></td>
+      <td><b>{{ r.skill }}</b>{% if r.is_critical %}<small>Critical skill</small>{% endif %}</td>
+      <td>L{{ r.tested_level }}<small>{{ r.tested_level_name }}</small></td>
+      <td>{{ r.mcq_detail ~ ' · ' ~ r.mcq_pct|round|int ~ '%' if r.mcq_detail else '—' }}</td>
+      <td>{% if r.verdict %}<span class="badge {{ 'success' if r.verdict == 'strong_evidence' else 'warning' if r.verdict == 'partial_evidence' else 'danger' }}">{{ r.verdict|replace('_', ' ')|title }}</span>{% else %}—{% endif %}</td>
+      <td>{% if r.integrity in ('medium', 'high') %}<span class="badge {{ 'danger' if r.integrity == 'high' else 'warning' }}">⚠ {{ r.integrity|title }}</span>{% elif r.integrity %}<span class="muted">Low</span>{% else %}—{% endif %}</td>
+      <td>{% if r.demonstrated %}<span class="badge success">✓ Demonstrated</span>{% else %}<span class="badge danger">Not yet · shown ~L{{ r.shown_level }}</span>{% endif %}</td>
+      <td>{{ 'L' ~ r.previous_level if r.previous_level is not none else 'Not assessed' }}{% if r.validated %} ✓{% endif %} → <b class="inline">L{{ [r.tested_level, r.previous_level or 0]|max }}</b></td>
+    </tr>
+    {% else %}<tr><td colspan="8" class="empty">No scored skills on this assessment.</td></tr>{% endfor %}
+    </tbody>
+  </table></div>
+  <label for="note" class="decision-label"><b>Rationale</b> <small>(required when your decision differs from the recommendation; the leader sees it in calibration)</small></label>
+  <textarea id="note" name="note" rows="3" maxlength="2000" placeholder="What did you weigh up? e.g. the transcript shows… / the AI-use flag…"></textarea>
+  <div class="decision-options">
+    <div class="decision-option {{ 'recommended' if outcome.recommendation == 'approved' }}">
+      <button class="button success-button" name="decision" value="approved" type="submit">Approve &amp; certify ticked levels</button>
+      <small>The ticked skills become validated at the tested level; weak un-ticked skills are recorded as gaps. Agent 5 outlines skill-up training{% if next_role %} towards {{ next_role.role_name }}{% else %} to the next level{% endif %}, booked on the calendar.</small>
+    </div>
+    <div class="decision-option {{ 'recommended' if outcome.recommendation == 'rejected' }}">
+      <button class="button danger-button" name="decision" value="rejected" type="submit">Reject &amp; assign skill-gap training</button>
+      <small>Nothing is certified; the levels shown for weak skills are recorded as confirmed gaps. Agent 5 outlines sessions to close them, booked on the calendar, and a re-assessment follows once they're done.</small>
+    </div>
+    <div class="decision-option">
+      <button class="button secondary" name="decision" value="sent_back" type="submit">Send back to retake</button>
+      <small>No level change or training — e.g. suspected AI use or not enough evidence. A fresh assessment is assigned from the question bank.</small>
+    </div>
+  </div>
+</form>
+{% endif %}
+{% endblock %}

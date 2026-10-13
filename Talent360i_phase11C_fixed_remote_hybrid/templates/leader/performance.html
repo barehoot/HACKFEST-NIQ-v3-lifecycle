@@ -1,0 +1,53 @@
+{% extends 'base.html' %}
+{% import 'people/_macros.html' as pm %}
+{% block title %}Performance Overview{% endblock %}
+{% block breadcrumb %}Leader / Performance Overview{% endblock %}
+{% block content %}
+<div class="page-heading"><div><p class="eyebrow">BUSINESS LEADER · ON TRACK / OFF TRACK</p><h1>Performance across the organisation</h1>
+  <p>{{ overview.total }} employees in scope. Status combines skills, reviews, assessments, evidence and development follow-through, recalculated as things change. Read it as where to look first, not as a verdict.</p></div>
+  <a class="button" href="/people">Browse all people →</a></div>
+{% if notice %}<div class="flash ok" role="status">{{ notice }}</div>{% endif %}
+
+<div class="band-strip">
+  {% for b in overview.bands %}<a class="band-tile tone-{{ b.tone }}" href="/people?band={{ b.band|urlencode }}"><span>{{ b.band }}</span><strong>{{ b.count }}</strong><small>{{ b.tier or 'needs evidence' }} · {{ b.pct }}%</small></a>{% endfor %}
+</div>
+
+<section class="lc-grid-2 lc-section">
+  <article class="lc-card"><h2>By department</h2><p class="lc-sub">Share at risk or off track first. Click a band above to see the people behind it.</p>
+    {% if overview.departments %}<div class="table-wrap"><table class="dept-table"><thead><tr><th>Department</th><th>People</th><th>Mix</th><th>At risk + off track</th></tr></thead><tbody>
+      {% for d in overview.departments %}<tr><td><b>{{ d.name }}</b></td><td>{{ d.total }}</td>
+        <td><div class="stack-bar" role="img" aria-label="Band mix">{% for b, tone in [('Exceeding', 'best'), ('On track', 'good'), ('At risk', 'low'), ('Off track', 'poor'), ('Not enough data', 'none')] %}{% if d[b] %}<i class="tone-{{ tone }}" style="width: {{ (100 * d[b] / d.total)|round(1) }}%" title="{{ b }}: {{ d[b] }}"></i>{% endif %}{% endfor %}</div></td>
+        <td><b style="color: {{ 'var(--lc-poor)' if d.off_pct >= 30 else 'inherit' }}">{{ d.off_pct }}%</b></td></tr>{% endfor %}
+    </tbody></table></div>
+    <div class="legend-row">{% for b, tone in [('Exceeding', 'best'), ('On track', 'good'), ('At risk', 'low'), ('Off track', 'poor'), ('Not enough data', 'none')] %}<span class="tone-{{ tone }}">{{ b }}</span>{% endfor %}</div>
+    {% else %}<div class="lc-empty">No status calculated yet.</div>{% endif %}
+  </article>
+  <article class="lc-card"><h2>Needs a leader</h2><p class="lc-sub">Escalations and probation decisions waiting on you.</p>
+    <ul class="attention-list">
+      {% for e in escalations %}
+        <li class="tone-poor"><a href="/people/{{ e.user_id }}#escalations"><span class="ico">!</span><div><b>{{ e.employee_name }}</b><small>{{ e.reason }} · manager {{ e.manager_name or '—' }}</small></div><span>→</span></a></li>
+      {% endfor %}
+      {% for r in probation.rows if r.status == 'pending_leader' %}
+        <li class="tone-low"><a href="/leader/probation"><span class="ico">P</span><div><b>{{ r.employee_name }}</b><small>Probation: manager recommends {{ r.recommendation_label|lower }}</small></div><span>→</span></a></li>
+      {% endfor %}
+      {% if not escalations and not probation.pending_leader %}<li class="lc-empty">Nothing waiting on you.</li>{% endif %}
+      {% if escalation_counts.leader > escalations|length %}<li class="lc-meta">Showing the newest {{ escalations|length }} of {{ escalation_counts.leader }} leader escalations. <a class="text-link" href="/people?signal=escalation">See all →</a></li>{% endif %}
+    </ul>
+    <div class="qv-stats" style="margin-top:14px">
+      <div class="qv-stat"><span>On probation</span><strong>{{ probation.open }}</strong><small>{{ probation.decision_due }} decision(s) due</small></div>
+      <div class="qv-stat"><span>Overdue check-ins</span><strong>{{ probation.overdue_checkins }}</strong><small>across managers</small></div>
+      <div class="qv-stat"><span>Escalations</span><strong>{{ escalation_counts.leader + escalation_counts.manager }}</strong><small>{{ escalation_counts.leader }} with leaders · {{ escalation_counts.manager }} with managers</small></div>
+      <div class="qv-stat"><span>Promotion ready</span><strong>{{ overview.promotion.get('Ready now', 0) }}</strong><small>{{ overview.promotion.get('Ready in 6-12 months', 0) }} in 6–12 months</small></div>
+    </div>
+  </article>
+</section>
+
+<section class="lc-section"><div class="section-heading"><div><h2>Performance concerns</h2><p>Off track, rated 2/5 or below, or at risk with repeated negative evidence.</p></div><a href="/people?signal=performance_concern">All {{ concerns.total }} →</a></div>
+  {% if concerns.cards %}<div class="people-grid">{% for c in concerns.cards %}{{ pm.person_card(c) }}{% endfor %}</div>{% else %}<div class="lc-empty">No performance concerns.</div>{% endif %}</section>
+
+<section class="lc-section"><div class="section-heading"><div><h2>Promotion ready</h2><p>Next-role skills ready and performance on track or better.</p></div><a href="/people?signal=promotion_ready">All {{ ready.total }} →</a></div>
+  {% if ready.cards %}<div class="people-grid">{% for c in ready.cards %}{{ pm.person_card(c) }}{% endfor %}</div>{% else %}<div class="lc-empty">No one is promotion-ready yet.</div>{% endif %}</section>
+
+<section class="lc-section"><div class="section-heading"><div><h2>Top performers</h2><p>Exceeding: worth recognising and retaining.</p></div><a href="/people?band=Exceeding">All {{ best.total }} →</a></div>
+  {% if best.cards %}<div class="people-grid">{% for c in best.cards %}{{ pm.person_card(c) }}{% endfor %}</div>{% else %}<div class="lc-empty">No one in the exceeding band yet.</div>{% endif %}</section>
+{% endblock %}

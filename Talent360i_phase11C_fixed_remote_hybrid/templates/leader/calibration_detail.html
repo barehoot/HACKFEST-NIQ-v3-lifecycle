@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% import 'partials/evidence.html' as ev %}
+{% block title %}Calibration · {{ cycle.employee_name }}{% endblock %}
+{% block breadcrumb %}Leader / Manager Calibration / {{ cycle.employee_name }}{% endblock %}
+{% block content %}
+<div class="page-heading"><div><a class="text-link" href="/leader/calibration">← Back to calibration</a>
+  <p class="eyebrow">CALIBRATION REVIEW</p><h1>{{ cycle.employee_name }}</h1>
+  <p>{{ cycle.matched_role_name }}{% if cycle.matched_role_grade %} · {{ cycle.matched_role_grade }}{% endif %} · decided by {{ decider.full_name or '—' }}</p></div>
+  <span class="badge {{ 'success' if cycle.manager_decision == 'approved' else 'danger' }}">Manager: {{ cycle.manager_decision|decision_label }}</span>
+</div>
+{% if error %}<div class="flash err" role="alert">{{ error }}</div>{% endif %}
+{% if row and row.divergence %}<div class="flash err" role="status"><b>Bias signal:</b> {{ row.divergence }} — the evidence band is “{{ row.band }}”.</div>{% endif %}
+
+<div class="detail-layout">
+  <article class="card validation-card">
+    <div class="section-heading"><div><h2>What the manager saw</h2><p>The same MCQ score, simulation evidence and conversation the manager reviewed.</p></div></div>
+    {% if not cycle.evidence_report %}<div class="flash" role="status">No AI evidence report was attached when the manager decided; the decision rests on the MCQ and the conversation below.</div>{% endif %}
+    {{ ev.evidence_report(cycle.evidence_report, cycle) }}
+    {{ ev.conversation(conversations) }}
+  </article>
+  <aside class="detail-sidebar">
+    <div class="card sidebar-box">
+      <p class="eyebrow">MANAGER DECISION</p>
+      <p><b>{{ cycle.manager_decision|decision_label }}</b>{% if cycle.status == 'pending_manager_approval' %} · <span class="badge blue">Back with manager for re-review</span>{% endif %}</p>
+      <p class="muted">{{ '“' ~ cycle.manager_decision_notes ~ '”' if cycle.manager_decision_notes else 'No written rationale recorded.' }}</p>
+      <small class="muted">Last updated {{ cycle.updated_at[:10] }}</small>
+    </div>
+    <div class="card sidebar-box">
+      <p class="eyebrow">CALIBRATION HISTORY</p>
+      {% for r in reviews %}
+      <div class="plan-gap-row"><div><b>{{ 'Concurred' if r.outcome == 'concur' else 'Re-review requested' }}</b><small>{{ r.leader_name }} · {{ r.created_at[:10] }} · manager had decided: {{ r.manager_decision|decision_label }}</small>{% if r.note %}<small>“{{ r.note }}”</small>{% endif %}</div></div>
+      {% else %}<p class="muted">No calibration reviews yet.</p>{% endfor %}
+    </div>
+    {% if cycle.status in ('manager_approved', 'manager_rejected') %}
+    <div class="card sidebar-box">
+      <p class="eyebrow">YOUR REVIEW</p>
+      <form method="post" action="/leader/calibration/{{ cycle.cycle_id }}/review" class="form-stack">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <textarea name="note" rows="4" maxlength="2000" placeholder="What did you check? For a re-review, say what the manager should look at again."></textarea>
+        <div class="decision-buttons">
+          <button class="button success-button" name="outcome" value="concur" type="submit">Concur</button>
+          <button class="button secondary" name="outcome" value="rereview" type="submit">Send for re-review</button>
+        </div>
+        <small class="muted">Re-review returns this assessment to the manager's validation queue with your note, and withdraws the levels it certified and the training sessions it booked. The manager decides again; your review does not set the outcome.</small>
+      </form>
+    </div>
+    {% endif %}
+  </aside>
+</div>
+{% endblock %}

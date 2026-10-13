@@ -1,0 +1,92 @@
+{
+  "_comment": "Synthetic internal postings in the SmartRecruiters Posting API shape (GET /v1/companies/{company}/postings, with jobAd inlined). Used only while SMARTRECRUITERS_COMPANY_ID is not set. releasedDaysAgo and hiringManagerId are demo-only fields.",
+  "offset": 0,
+  "limit": 100,
+  "totalFound": 6,
+  "content": [
+    {
+      "id": "DEMO-1001",
+      "name": "Data Analyst",
+      "releasedDaysAgo": 4,
+      "location": {"city": "Pune", "region": "Maharashtra", "country": "in", "remote": false},
+      "department": {"label": "Data & Analytics"},
+      "typeOfEmployment": {"label": "Full-time"},
+      "experienceLevel": {"label": "Associate"},
+      "postingUrl": "https://jobs.smartrecruiters.com/Talent360iDemo/DEMO-1001-data-analyst",
+      "jobAd": {"sections": {
+        "jobDescription": {"title": "Job Description", "text": "<p>Join the Data Science department to turn finance-operations data into insight.</p><ul><li>Build and maintain SQL data sets from the ERP and the AP / O2C sub-ledgers</li><li>Automate recurring analysis in Python</li><li>Design Power BI dashboards for process owners</li><li>Explain trends and anomalies to finance leaders</li></ul>"},
+        "qualifications": {"title": "Qualifications", "text": "<ul><li>SQL and data wrangling</li><li>Python for analysis</li><li>Power BI or similar visualisation</li><li>Basic statistics</li><li>Clear data storytelling</li></ul>"}
+      }}
+    },
+    {
+      "id": "DEMO-1002",
+      "name": "Data Scientist",
+      "releasedDaysAgo": 9,
+      "location": {"city": "Chicago", "region": "IL", "country": "us", "remote": true},
+      "department": {"label": "Data & Analytics"},
+      "typeOfEmployment": {"label": "Full-time"},
+      "experienceLevel": {"label": "Mid-Senior Level"},
+      "postingUrl": "https://jobs.smartrecruiters.com/Talent360iDemo/DEMO-1002-data-scientist",
+      "jobAd": {"sections": {
+        "jobDescription": {"title": "Job Description", "text": "<p>Build the models that predict late payments, duplicate invoices and cash-flow risk.</p><ul><li>Develop and validate machine-learning models in Python</li><li>Design experiments and measure impact</li><li>Partner with AP, O2C and Treasury on adoption</li></ul>"},
+        "qualifications": {"title": "Qualifications", "text": "<ul><li>Python (pandas, scikit-learn)</li><li>Statistics and experimentation</li><li>Machine learning</li><li>SQL</li><li>Data storytelling</li></ul>"}
+      }}
+    },
+    {
+      "id": "DEMO-1003",
+      "name": "P2P Lead",
+      "releasedDaysAgo": 12,
+      "location": {"city": "Pune", "region": "Maharashtra", "country": "in", "remote": false},
+      "department": {"label": "Accounts Payable"},
+      "typeOfEmployment": {"label": "Full-time"},
+      "experienceLevel": {"label": "Mid-Senior Level"},
+      "postingUrl": "https://jobs.smartrecruiters.com/Talent360iDemo/DEMO-1003-p2p-lead",
+      "jobAd": {"sections": {
+        "jobDescription": {"title": "Job Description", "text": "<p>Lead a procure-to-pay team: invoice processing, three-way match exceptions and payment runs, with quality and SLA ownership.</p>"},
+        "qualifications": {"title": "Qualifications", "text": "<ul><li>Invoice processing (PO and non-PO)</li><li>Exception handling</li><li>Team leadership</li></ul>"}
+      }}
+    },
+    {
+      "id": "DEMO-1004",
+      "name": "Senior Revenue Associate",
+      "releasedDaysAgo": 20,
+      "location": {"city": "Chicago", "region": "IL", "country": "us", "remote": false},
+      "department": {"label": "Order to Cash"},
+      "typeOfEmployment": {"label": "Full-time"},
+      "experienceLevel": {"label": "Associate"},
+      "postingUrl": "https://jobs.smartrecruiters.com/Talent360iDemo/DEMO-1004-senior-revenue-associate",
+      "jobAd": {"sections": {
+        "jobDescription": {"title": "Job Description", "text": "<p>Own billing accuracy and revenue assurance for a portfolio of key accounts.</p>"},
+        "qualifications": {"title": "Qualifications", "text": "<ul><li>Billing and invoicing</li><li>Revenue recognition basics</li><li>Customer communication</li></ul>"}
+      }}
+    },
+    {
+      "id": "DEMO-1005",
+      "name": "Process Automation Specialist",
+      "releasedDaysAgo": 6,
+      "location": {"city": "Pune", "region": "Maharashtra", "country": "in", "remote": true},
+      "department": {"label": "Finance Transformation"},
+      "typeOfEmployment": {"label": "Full-time"},
+      "experienceLevel": {"label": "Associate"},
+      "postingUrl": "https://jobs.smartrecruiters.com/Talent360iDemo/DEMO-1005-process-automation-specialist",
+      "jobAd": {"sections": {
+        "jobDescription": {"title": "Job Description", "text": "<p>Automate repetitive finance-operations work with Power Automate, RPA and Python, with run logs and controls.</p><ul><li>Find automation candidates with process owners</li><li>Build, test and hand over automations</li><li>Monitor runs and exceptions</li></ul>"},
+        "qualifications": {"title": "Qualifications", "text": "<ul><li>Power Automate or RPA</li><li>Python scripting</li><li>Process mapping</li><li>Controls awareness</li></ul>"}
+      }}
+    },
+    {
+      "id": "DEMO-1006",
+      "name": "FP&A Analyst",
+      "releasedDaysAgo": 2,
+      "location": {"city": "Chicago", "region": "IL", "country": "us", "remote": false},
+      "department": {"label": "Financial Planning & Analysis"},
+      "typeOfEmployment": {"label": "Full-time"},
+      "experienceLevel": {"label": "Associate"},
+      "postingUrl": "https://jobs.smartrecruiters.com/Talent360iDemo/DEMO-1006-fpa-analyst",
+      "jobAd": {"sections": {
+        "jobDescription": {"title": "Job Description", "text": "<p>Build the monthly rolling forecast and variance commentary for the business units, and partner with budget owners.</p><ul><li>Driver-based forecasting</li><li>Variance analysis and management reporting</li><li>Budget reviews with stakeholders</li></ul>"},
+        "qualifications": {"title": "Qualifications", "text": "<ul><li>Excel financial modelling</li><li>Variance analysis</li><li>Power BI</li><li>Business partnering</li></ul>"}
+      }}
+    }
+  ]
+}

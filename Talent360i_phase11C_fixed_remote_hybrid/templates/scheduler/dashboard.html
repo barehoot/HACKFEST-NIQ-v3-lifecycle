@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Scheduler Dashboard{% endblock %}
+{% block breadcrumb %}Scheduler{% endblock %}
+{% block content %}
+<section class="crextio-hero">
+  <div><p class="eyebrow">ASSESSMENT DESIGN WORKSPACE</p><h1>Assessment Scheduler</h1><p>Design a governed assessment from role targets through SME approval and scheduling.</p><div class="hero-tags"><span>Blueprint</span><span>Question Set</span><span>SME Gate</span><span>Schedule</span></div></div>
+  <a class="yellow-button" href="/scheduler/blueprint">Open blueprint <span>→</span></a>
+</section>
+<div class="quick-metrics">
+  <div class="quick-metric dark-metric"><span>Blueprints</span><strong>{{ dashboard.metrics.blueprints }}</strong><small>Active assessment designs</small></div>
+  <div class="quick-metric"><span>Pending SME</span><strong>{{ dashboard.metrics.pending_sme }}</strong><small>Items awaiting human gate</small></div>
+  <div class="quick-metric accent-metric"><span>Approved Sets</span><strong>{{ dashboard.metrics.approved_question_sets }}</strong><small>Reusable question sets</small></div>
+  <div class="quick-metric"><span>Scheduled</span><strong>{{ dashboard.metrics.scheduled }}</strong><small>Assessments &amp; training this month · <a href="/scheduler/schedule">calendar</a></small></div>
+</div>
+<div class="dashboard-bento">
+  <section class="neo-card readiness-card" style="grid-area:readiness">
+    <div class="card-label-row"><span>Current Blueprint</span><a href="/scheduler/blueprint">View details →</a></div>
+    <div class="readiness-head"><div><h2>{{ dashboard.blueprint.role }}</h2><p class="muted-copy">{{ dashboard.blueprint.grade }} · {{ dashboard.blueprint.framework }} · {{ dashboard.blueprint.items }} assessment items</p></div><div class="readiness-ring" style="--value:60%"><div><strong>60%</strong><span>ready</span></div></div></div>
+    <div class="skill-bars">
+      {% for step in dashboard.steps %}<div><div class="skill-bar-title"><b>{{ step.name }}</b><span>{{ step.status }}</span></div><div class="skill-bar"><i style="width:{{ 100 if step.status == 'Ready' else 50 if step.status == 'Pending' else 20 }}%"></i></div></div>{% endfor %}
+    </div>
+  </section>
+  <section class="neo-card assessment-card" style="grid-area:assessment"><div class="assessment-icon">B</div><div class="card-label-row"><span>Blueprint</span><span class="status-dot">Draft</span></div><h2>{{ dashboard.blueprint.id }}</h2><p>{{ dashboard.blueprint.role }} · {{ dashboard.blueprint.grade }}</p><div class="assessment-stats"><span><b>{{ dashboard.blueprint.items }}</b>Items</span><span><b>{{ dashboard.blueprint.framework }}</b>Framework</span><span><b>SME</b>Gate</span></div><a class="dark-button" href="/scheduler/blueprint">Review <span>→</span></a></section>
+  <section class="neo-card learning-card-new" style="grid-area:learning"><div class="card-label-row"><span>Governed Chain</span></div><h2>Build in order</h2><div class="learning-list">{% for step in dashboard.steps %}<div class="learning-item"><span class="learning-number">{{ loop.index }}</span><div><b>{{ step.name }}</b><small>{{ step.status }}</small></div><span class="priority {{ 'high' if 'Blocked' in step.status else 'medium' }}">{{ 'Gate' if 'Approval' in step.name else 'Step' }}</span></div>{% endfor %}</div></section>
+  <section class="neo-card gap-card-new" style="grid-area:gaps"><div class="card-label-row"><span>Scheduling Gate</span></div><h2>Approval must come first</h2><p class="muted-copy">Questions cannot be scheduled until the SME gate has approved the question set. The current blueprint is {{ dashboard.blueprint.status|lower }} and therefore remains in design.</p><div class="hero-tags"><span>AI proposal</span><span>SME approval</span><span>Scheduler launch</span></div></section>
+</div>
+{% endblock %}

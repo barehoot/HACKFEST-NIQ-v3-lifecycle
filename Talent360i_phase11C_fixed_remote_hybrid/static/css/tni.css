@@ -1,0 +1,291 @@
+/* TNI heatmaps, learning curve and scheduler calendar.
+   Colours are the dataviz reference palette: categorical slots 1-3 (blue,
+   orange, aqua) for identity, the one-hue blue ramp for gap magnitude. */
+:root{
+  --viz-surface:#ffffff;--viz-ink:#0b0b0b;--viz-ink-2:#52514e;--viz-muted:#898781;
+  --viz-grid:#e1e0d9;--viz-axis:#c3c2b7;--viz-neutral:#f0efec;
+  --viz-blue:#2a78d6;--viz-orange:#eb6834;--viz-aqua:#1baf7a;
+  --viz-seq-0:#cde2fb;--viz-seq-1:#6da7ec;--viz-seq-2:#256abf;--viz-seq-3:#0d366b;
+}
+
+/* Legends */
+.viz-legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:11px;color:var(--viz-ink-2);align-items:center}
+.viz-legend span{display:inline-flex;align-items:center;gap:5px}
+.viz-legend i{width:12px;height:12px;border-radius:3px;display:inline-block;flex:0 0 auto}
+.viz-legend i.line{height:2px;border-radius:1px}
+.sw-achieved{background:var(--viz-blue)}.sw-gap{background:var(--viz-orange)}.sw-beyond{background:var(--viz-neutral)}
+.sw-unassessed{background:var(--viz-surface);box-shadow:inset 0 0 0 1px var(--viz-axis)}
+.sw-seq-0{background:var(--viz-seq-0)}.sw-seq-1{background:var(--viz-seq-1)}.sw-seq-2{background:var(--viz-seq-2)}.sw-seq-3{background:var(--viz-seq-3)}
+.sw-assessment{background:var(--viz-blue)}.sw-training{background:var(--viz-orange)}.sw-activity{background:var(--viz-aqua)}
+
+.viz-card{padding:18px}
+.viz-head{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap;margin-bottom:14px}
+.viz-head h2{font-size:16px;margin:0;color:var(--fin-ink,#172033)}
+.viz-head p{font-size:11.5px;color:var(--fin-muted,#7c8799);margin:5px 0 0;max-width:640px;line-height:1.5}
+.viz-grid-2{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:12px;margin-bottom:12px}
+@media(max-width:1000px){.viz-grid-2{grid-template-columns:minmax(0,1fr)}}
+.viz-grid-2>*,.plan-layout>*,.schedule-forms>*{min-width:0}
+.schedule-forms select,.schedule-forms input{min-width:0;max-width:100%}
+
+/* Employee skill heatmap: skills x L1..L5 */
+.heat-table{border-collapse:separate;border-spacing:2px;width:100%;min-width:320px}
+.finance-page .heat-table th{background:none;border:0;padding:0}.finance-page .heat-table td{border:0;padding:0}
+.heat-table th{font-size:10px;color:var(--viz-muted);font-weight:700;text-align:center;padding:0 0 4px}
+.heat-table th.heat-skill{text-align:left}
+.finance-page .heat-table td.heat-skill{font-size:11.5px;color:var(--viz-ink);padding:0 10px 0 0;max-width:260px;line-height:1.3}
+.heat-skill small{display:block;color:var(--viz-muted);font-size:10px;margin-top:2px}
+.heat-cell{height:30px;min-width:28px;border-radius:4px;text-align:center;font-size:11.5px;font-weight:700;cursor:default;position:relative}
+.finance-page .heat-table td.heat-cell{padding:0}
+.heat-cell.achieved{background:var(--viz-blue);color:#fff}
+.heat-cell.gap{background:var(--viz-orange);color:var(--viz-ink)}
+.heat-cell.beyond{background:var(--viz-neutral);color:var(--viz-muted)}
+.heat-cell.unassessed{background:var(--viz-surface);box-shadow:inset 0 0 0 1px var(--viz-grid);color:var(--viz-muted)}
+.heat-cell:hover,.heat-cell:focus{outline:2px solid var(--viz-ink);outline-offset:1px}
+
+/* Manager heatmap: employees x skills, cell = gap to target (blue ramp) */
+.team-heat{border-collapse:separate;border-spacing:2px;width:100%}
+.finance-page .team-heat th{background:none;border:0;padding:0}.finance-page .team-heat td{border:0;padding:0}
+.finance-page .team-heat thead th{font-size:10px;color:var(--viz-ink-2);font-weight:700;vertical-align:bottom;text-align:left;padding:0 2px 6px;min-width:64px;line-height:1.25;white-space:normal;text-transform:none;letter-spacing:0;overflow-wrap:anywhere}
+.finance-page .team-heat td.team-name{font-size:11.5px;color:var(--viz-ink);padding-right:10px;white-space:nowrap}
+.team-name small{display:block;color:var(--viz-muted);font-size:10px}
+.team-cell{height:32px;border-radius:4px;text-align:center;font-size:11.5px;font-weight:700}
+.finance-page .team-heat td.team-cell{padding:0}
+.team-cell.g0{background:var(--viz-seq-0);color:var(--viz-ink)}
+.team-cell.g1{background:var(--viz-seq-1);color:var(--viz-ink)}
+.team-cell.g2{background:var(--viz-seq-2);color:#fff}
+.team-cell.g3{background:var(--viz-seq-3);color:#fff}
+.team-cell.na{background:var(--viz-surface);box-shadow:inset 0 0 0 1px var(--viz-grid);color:var(--viz-muted);font-weight:400}
+.team-cell:hover,.team-cell:focus{outline:2px solid var(--viz-ink);outline-offset:1px}
+
+/* Shared tooltip */
+.viz-tip{position:fixed;z-index:60;pointer-events:none;background:#fff;border:1px solid rgba(11,11,11,.1);border-radius:8px;box-shadow:0 8px 24px rgba(20,30,50,.14);padding:8px 10px;font-size:11.5px;color:var(--viz-ink-2);max-width:280px;line-height:1.45;opacity:0;transition:opacity .08s}
+.viz-tip.show{opacity:1}
+.viz-tip b{display:block;color:var(--viz-ink);font-size:13px}
+
+/* Line chart (learning curve) */
+.line-chart{position:relative;width:100%;min-height:260px;outline:none}
+.line-chart svg{display:block;width:100%;height:260px;overflow:visible}
+.line-chart:focus-visible{box-shadow:0 0 0 2px var(--viz-blue);border-radius:6px}
+.line-chart .grid line{stroke:var(--viz-grid);stroke-width:1}
+.line-chart .axis text{fill:var(--viz-muted);font-size:11.5px;font-variant-numeric:tabular-nums}
+.line-chart .baseline{stroke:var(--viz-axis);stroke-width:1}
+.line-chart .target{stroke:var(--viz-ink-2);stroke-width:1}
+.line-chart .target-label,.line-chart .end-label{fill:var(--viz-ink-2);font-size:11.5px}
+.line-chart .end-label{fill:var(--viz-ink);font-weight:700}
+.line-chart .series{fill:none;stroke:var(--viz-blue);stroke-width:2;stroke-linejoin:round;stroke-linecap:round}
+.line-chart .area{fill:var(--viz-blue);opacity:.1}
+.line-chart .dot{fill:var(--viz-blue);stroke:#fff;stroke-width:2}
+.line-chart .crosshair{stroke:var(--viz-axis);stroke-width:1}
+.line-chart .x-title{fill:var(--viz-muted);font-size:11.5px}
+.chart-table summary{font-size:11.5px;color:var(--fin-blue,#2867e3);cursor:pointer;margin-top:10px}
+.chart-table table{margin-top:8px}
+
+/* Skill-up path */
+.skillup{list-style:none;margin:0;padding:0}
+.skillup li{display:grid;grid-template-columns:28px minmax(0,1fr) auto;gap:12px;align-items:start;padding:12px 0;border-bottom:1px solid #eef1f5}
+.skillup li:last-child{border-bottom:0}
+.skillup .num{width:28px;height:28px;border-radius:8px;background:#eef4ff;color:var(--fin-blue,#2867e3);display:grid;place-items:center;font-size:11.5px;font-weight:800}
+.skillup b{font-size:12px;color:var(--fin-ink,#172033);display:block}
+.skillup small{display:block;font-size:11px;color:#7c8799;margin-top:3px;line-height:1.45}
+.skillup .levels{font-size:11.5px;font-weight:700;color:var(--viz-ink-2);white-space:nowrap;text-align:right}
+.skillup .levels small{font-weight:400}
+.level-steps{display:inline-flex;gap:2px;margin-top:6px}
+.level-steps i{width:14px;height:6px;border-radius:2px;background:var(--viz-neutral)}
+.level-steps i.achieved{background:var(--viz-blue)}.level-steps i.gap{background:var(--viz-orange)}
+.coverage-meter{height:8px;border-radius:4px;background:var(--viz-seq-0);overflow:hidden;margin:10px 0 6px}
+.coverage-meter span{display:block;height:100%;background:var(--viz-blue);border-radius:4px}
+
+/* Filter pills (shared) */
+.pill-row{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 12px}
+.pill-row a{font-size:11px;text-decoration:none;color:#58677b;background:#fff;border:1px solid var(--fin-line,#e8edf3);border-radius:99px;padding:6px 10px}
+.pill-row a.selected{background:var(--fin-navy,#17243d);border-color:var(--fin-navy,#17243d);color:#fff}
+
+/* Scheduler calendar */
+.cal-toolbar{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+.cal-nav{display:flex;align-items:center;gap:6px}
+.cal-nav h2{font-size:18px;margin:0 8px;color:var(--fin-ink,#172033);min-width:150px}
+.cal-nav a{display:grid;place-items:center;height:30px;min-width:30px;padding:0 9px;border:1px solid var(--fin-line,#e8edf3);border-radius:8px;background:#fff;color:#4d5a6d;text-decoration:none;font-size:12px}
+.cal-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));border-top:1px solid var(--fin-line,#e8edf3);border-left:1px solid var(--fin-line,#e8edf3)}
+.cal-dow{font-size:10px;font-weight:800;letter-spacing:.6px;color:#8792a3;text-transform:uppercase;padding:8px;background:#fafbfd;border-right:1px solid var(--fin-line,#e8edf3);border-bottom:1px solid var(--fin-line,#e8edf3)}
+.cal-day{min-height:112px;padding:6px;border-right:1px solid var(--fin-line,#e8edf3);border-bottom:1px solid var(--fin-line,#e8edf3);background:#fff;min-width:0}
+.cal-day.out{background:#fafbfc}.cal-day.out .cal-date{color:#c1c8d2}
+.cal-day.weekend{background:#fbfbfd}
+.cal-date{font-size:11.5px;font-weight:700;color:#4d5a6d;display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%}
+.cal-day.today .cal-date{background:var(--fin-blue,#2867e3);color:#fff}
+.cal-chip{display:block;margin-top:3px;padding:3px 6px 3px 7px;border-radius:5px;font-size:11px;line-height:1.3;color:var(--viz-ink);text-decoration:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-left:3px solid;cursor:default}
+.cal-chip.assessment{background:#eaf2fc;border-color:var(--viz-blue)}
+.cal-chip.training{background:#fdefe9;border-color:var(--viz-orange)}
+.cal-chip.activity{background:#e7f6f0;border-color:var(--viz-aqua)}
+.cal-chip b{font-weight:700}
+.cal-more{display:block;margin-top:3px;font-size:11px;color:var(--fin-blue,#2867e3);text-decoration:none}
+.agenda-day{padding:10px 0;border-bottom:1px solid #eef1f5}
+.agenda-day:last-child{border-bottom:0}
+.agenda-day h3{font-size:12px;margin:0 0 6px;color:var(--fin-ink,#172033)}
+.agenda-day h3 .badge{margin-left:6px}
+.agenda-item{display:grid;grid-template-columns:52px 10px minmax(0,1fr) auto;gap:8px;align-items:start;padding:6px 0;font-size:11.5px;color:#5d6b7e}
+.agenda-item time{font-variant-numeric:tabular-nums;color:#8792a3}
+.agenda-item i{width:10px;height:10px;border-radius:3px;margin-top:2px}
+.agenda-item b{color:var(--fin-ink,#172033);display:block}
+.agenda-item small{display:block;color:#8b97a7;margin-top:2px}
+.agenda-item form{margin:0}
+.link-button{border:0;background:none;color:#c83d4e;font-size:11px;cursor:pointer;padding:2px 0}
+.schedule-forms{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:12px}
+.schedule-forms .form-stack{display:grid;gap:9px}
+.schedule-forms label{display:grid;gap:4px;font-size:11px;color:#6d7a8e;font-weight:700}
+.schedule-forms .row-2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.flash{padding:11px 14px;border-radius:10px;font-size:11.5px;margin-bottom:12px}
+.flash.ok{background:#eaf7f1;border:1px solid #bfe5d2;color:#17684a}
+.flash.err{background:#fff0f1;border:1px solid #f3c7c7;color:#a8323f}
+@media(max-width:1100px){.schedule-forms{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:760px){
+  .schedule-forms{grid-template-columns:minmax(0,1fr)}
+  .cal-grid{display:none}
+  .cal-nav h2{min-width:0;font-size:16px}
+}
+
+/* A4 workplace simulation */
+.sim-steps{list-style:none;display:flex;flex-wrap:wrap;gap:8px;margin:0 0 12px;padding:0}
+.sim-steps li{display:flex;align-items:center;gap:8px;padding:8px 12px;border:1px solid var(--fin-line,#e8edf3);border-radius:10px;background:#fff;font-size:11.5px;color:#5d6b7e;min-width:0}
+.sim-steps li>span{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;background:#eef1f5;font-weight:800;flex:0 0 auto}
+.sim-steps li.current{border-color:var(--fin-blue,#2867e3)}.sim-steps li.current>span{background:var(--fin-blue,#2867e3);color:#fff}
+.sim-steps li.done>span{background:#eaf7f1;color:#17875b}
+.sim-steps b{display:block;color:var(--fin-ink,#172033);font-size:11.5px}.sim-steps small{display:block;font-size:10px;color:#8b97a7}
+.sim-done{padding:14px 18px;margin-bottom:10px}
+.sim-done summary{cursor:pointer;font-size:12px;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.sim-done summary small{color:#8b97a7;font-size:11px}
+.sim-card{padding:20px;margin-bottom:12px}
+.sim-card h2{font-size:18px;margin:8px 0 10px;color:var(--fin-ink,#172033)}
+.sim-head{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.sim-head .eyebrow{margin:0!important}
+.sim-probes{margin-left:auto;font-size:11px;color:#6d7a8e}
+.sim-brief{background:#f7f9fc;border:1px solid #e8edf3;border-radius:10px;padding:12px 14px;margin:10px 0}
+.sim-brief small{display:block;font-size:9px;letter-spacing:.7px;color:#98a3b1;font-weight:800;margin-bottom:5px}
+.sim-brief p{font-size:12px;line-height:1.6;color:#3d4d65;margin:0}
+.sim-thread{display:flex;flex-direction:column;gap:10px;margin:14px 0}
+.bubble{max-width:min(640px,88%);padding:10px 13px;border-radius:12px;font-size:12px;line-height:1.55;white-space:pre-line;overflow-wrap:anywhere}
+.bubble small{display:block;font-size:10px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;margin-bottom:4px;opacity:.75}
+.bubble.agent{align-self:flex-start;background:#eef4ff;color:#1d2f52;border-top-left-radius:4px}
+.bubble.candidate{align-self:flex-end;background:#fff;border:1px solid #e1e7ef;color:#3d4d65;border-top-right-radius:4px}
+.sim-form{display:grid;gap:8px;margin-top:6px}
+.sim-form label{font-size:11.5px;color:#4d5a6d}
+.sim-form textarea{width:100%;min-height:120px;resize:vertical;border:1px solid #d5dce7;border-radius:9px;padding:11px;font-family:inherit;font-size:12px;line-height:1.55;color:#1d2f52}
+.sim-form textarea:focus{outline:none;border-color:#8cacf2;box-shadow:0 0 0 3px #eef4ff}
+.sim-actions{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.sim-actions small{font-size:11px;color:#8b97a7}
+.sim-finish{margin-top:8px;text-align:right}
+.sim-finish .link-button{color:#5d6b7e;text-decoration:underline}
+.transcript-block{margin-top:10px}
+.transcript-block summary{font-size:11.5px;color:var(--fin-blue,#2867e3);cursor:pointer}
+.target-list{list-style:none;padding:0;margin:8px 0 0;font-size:11.5px;color:#4d5a6d}
+.target-list li{padding:3px 0}
+.target-list li.yes:before{content:"✓ ";color:#17875b;font-weight:700}
+.target-list li.no:before{content:"✗ ";color:#c83d4e;font-weight:700}
+
+/* Leader report bars and meters */
+.hbars{display:grid;gap:9px}
+.hbar-row{display:grid;grid-template-columns:minmax(110px,160px) minmax(0,1fr) 44px;gap:10px;align-items:center;font-size:11.5px;color:#4d5a6d}
+.hbar-track{height:10px;border-radius:0 4px 4px 0;background:none;position:relative}
+.hbar-track i{display:block;height:100%;min-width:2px;background:var(--viz-blue);border-radius:0 4px 4px 0}
+.hbar-track i.zero{display:none}
+.mini-link{font-size:11px;color:var(--fin-blue,#2867e3);text-decoration:none}
+.hbar-row b{font-variant-numeric:tabular-nums;color:var(--viz-ink);text-align:right}
+.inline-meter{display:inline-block;width:70px;height:6px;border-radius:3px;background:var(--viz-seq-0);vertical-align:middle;margin-right:6px;overflow:hidden}
+.inline-meter i{display:block;height:100%;background:var(--viz-blue)}
+.signal-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.signal-grid div{padding:11px;border:1px solid #e8edf3;border-radius:9px;background:#fafbfd}
+.signal-grid small{display:block;font-size:10px;color:#8792a3;text-transform:uppercase;letter-spacing:.5px;font-weight:700}
+.signal-grid strong{font-size:20px;color:var(--viz-ink)}
+@media(max-width:760px){.signal-grid{grid-template-columns:1fr 1fr}.hbar-row{grid-template-columns:96px minmax(0,1fr) 38px}}
+.evidence-skill{padding:10px 0;border-bottom:1px solid #eef1f5}
+.evidence-skill:last-child{border-bottom:0}
+
+/* Manager enrolment */
+.enrol-picker{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.enrol-picker select{min-width:0;flex:1 1 260px;max-width:100%}
+.enrol-inline{display:inline-flex;flex-wrap:wrap;gap:6px;align-items:center;margin:0}
+.enrol-inline input,.enrol-inline select{border:1px solid #e1e7ef;border-radius:7px;padding:6px 8px;font-size:11.5px;background:#fff;color:#4d5a6d;max-width:100%}
+.link-button.ok{color:#17875b}
+
+/* SME generation and assessment builder */
+.skill-picks{border:1px solid var(--fin-line,#e8edf3);border-radius:9px;padding:10px 12px;display:grid;gap:6px;margin:0}
+.skill-picks legend{font-size:11.5px;font-weight:700;color:#4d5a6d;padding:0 4px}
+.skill-picks legend small{font-weight:400;color:#8b97a7}
+.check-row{display:flex;gap:8px;align-items:baseline;font-size:11.5px;color:#3d4d65}
+.check-row small{color:#8b97a7}
+.builder-config{display:flex;flex-wrap:wrap;gap:12px;align-items:end}
+.builder-config label,.builder-deploy label{display:grid;gap:4px;font-size:11px;font-weight:700;color:#6d7a8e}
+.builder-config select,.builder-config input,.builder-deploy input{border:1px solid #e1e7ef;border-radius:7px;padding:7px 9px;font-size:11.5px;background:#fff;color:#4d5a6d;max-width:100%}
+.builder-config label:first-child{flex:1 1 260px}
+.builder-deploy{display:flex;flex-wrap:wrap;gap:12px;align-items:end;justify-content:space-between}
+.integrity-flag{border-left:3px solid #d03b3b}
+.bubble .meta-flag{display:block;margin-top:6px;font-size:10px;font-weight:700;letter-spacing:.3px;text-transform:uppercase;color:#a8323f}
+
+/* Manager decision: outcome table, recommendation and the three actions */
+.recommend{border-radius:10px;padding:11px 14px;margin:0 0 12px;font-size:12px;display:flex;flex-direction:column;gap:4px}
+.recommend.strong{background:#eaf7f1;border:1px solid #bfe5d2;color:#17684a}
+.recommend.low{background:#fff4ec;border:1px solid #f6d3bd;color:#9a4413}
+.recommend small{color:inherit;opacity:.85;font-size:11.5px;line-height:1.45}
+.outcome-table tr.short td{background:#fffaf6}
+.outcome-table td b.inline,b.inline{display:inline}
+.decision-label{display:block;margin:14px 0 6px;font-size:12px}
+.decision-label small{color:var(--fin-muted,#7c8799);font-weight:400}
+.decision-card textarea{width:100%;border:1px solid var(--line,#e3e7ee);border-radius:8px;padding:9px;font-family:inherit;font-size:13px;resize:vertical}
+.decision-options{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:12px}
+.decision-option{border:1px solid var(--line,#e3e7ee);border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:8px;min-width:0}
+.decision-option .button{width:100%;white-space:normal}
+.decision-option small{font-size:11.5px;color:var(--fin-muted,#7c8799);line-height:1.45}
+.decision-option.recommended{border-color:var(--viz-blue);box-shadow:0 0 0 1px var(--viz-blue) inset}
+.decision-option.recommended::before{content:"Recommended";font-size:11px;font-weight:700;letter-spacing:.5px;color:var(--viz-blue);text-transform:uppercase}
+@media(max-width:900px){.decision-options{grid-template-columns:minmax(0,1fr)}}
+
+/* Agent 5 training outline */
+.outline-card{padding:0;margin-bottom:10px}
+.outline-card>summary{list-style:none;cursor:pointer;display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:14px 18px}
+.outline-card>summary::-webkit-details-marker{display:none}
+.outline-card>summary::after{content:"▾";margin-left:auto;color:var(--fin-muted,#7c8799)}
+.outline-card[open]>summary::after{content:"▴"}
+.outline-card>summary small{color:var(--fin-muted,#7c8799);font-size:11.5px}
+.outline-card>:not(summary){margin-left:18px;margin-right:18px}
+.outline-summary{font-size:13px;line-height:1.5;margin:0 0 8px}
+.outline-meta{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:11.5px;color:var(--fin-muted,#7c8799);margin-bottom:10px}
+.outline-sessions{list-style:none;padding:0;margin:0 0 10px;display:grid;gap:8px}
+.outline-sessions>li{border:1px solid var(--line,#e3e7ee);border-radius:9px;padding:10px 12px;min-width:0}
+.outline-sessions>li.done{background:#f5fbf8;border-color:#cfe9dc}
+.outline-head{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px}
+.outline-head b{font-size:13px}
+.outline-head small{color:var(--fin-muted,#7c8799);font-size:11.5px;flex:1 1 220px}
+.outline-body{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:8px;font-size:12px;line-height:1.45}
+.outline-body small{display:block;font-size:11px;font-weight:700;letter-spacing:.5px;color:var(--fin-muted,#7c8799);margin-bottom:3px}
+.outline-body ul{margin:0;padding-left:16px}.outline-body p{margin:0 0 6px}
+@media(max-width:900px){.outline-body{grid-template-columns:minmax(0,1fr)}}
+.outline-foot{font-size:11.5px;margin:0 18px 14px!important}
+
+/* Promotion readiness */
+.cert-list{list-style:none;padding:0;margin:0;display:grid;gap:6px}
+.cert-list li{display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:12px}
+.cert-list small{color:var(--fin-muted,#7c8799);font-size:11.5px;width:100%}
+.career-card{margin-top:12px}
+.sidebar-box textarea{width:100%;border:1px solid var(--line,#e3e7ee);border-radius:8px;padding:9px;font-family:inherit;font-size:13px;margin:8px 0}
+.sidebar-box h2{font-size:15px;margin:0 0 6px}
+.finance-page td.nowrap{white-space:nowrap}
+
+/* UI consistency fixes */
+/* Buttons: one font, text centred vertically and horizontally for <a> and <button> alike */
+.button{display:inline-flex;align-items:center;justify-content:center;gap:0;height:auto;min-height:38px;font-family:inherit;font-weight:600;line-height:1.2;text-align:center;vertical-align:middle}
+.button.full{display:flex}
+.yellow-button,.dark-button{border:0;font-family:inherit;line-height:1.2;cursor:pointer;justify-content:center;gap:8px}
+.leader-framework-switch>*{justify-content:center}
+.login-submit{font-family:inherit;font-weight:700;font-size:12px}
+/* Form controls: the old `font:13px inherit` shorthand was invalid, so controls fell back to the browser font */
+.form-stack select,.form-stack input,.form-stack textarea,.descriptive-response textarea{font-family:inherit;font-size:13px}
+.descriptive-response textarea{line-height:1.55}
+/* SME generation: keep skill checkboxes at their natural size and aligned with the label */
+.skill-picks .check-row{align-items:center;font-weight:600;cursor:pointer}
+.skill-picks .check-row input{width:auto;flex:0 0 auto;margin:0;padding:0;border:0}
+.skill-picks .check-row small{font-weight:400;margin-left:auto}
+/* Leader KPIs: number on the dark card must stay light */
+.finance-page .dark-metric strong{color:#fff}
+/* Simulation complete: centred icon, copy and a normal-sized submit button */
+.sim-complete{text-align:center;padding:32px 20px}
+.sim-complete .muted-copy{max-width:520px;margin:6px auto 16px}
+.sim-complete .button{width:auto;min-width:220px}

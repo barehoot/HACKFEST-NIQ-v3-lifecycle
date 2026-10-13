@@ -1,0 +1,4 @@
+# The portal and the pipeline API share one virtualenv and one pinned lock
+# file at the project root -- install that instead:
+#   pip install -r ../requirements.txt
+-r ../requirements.txt

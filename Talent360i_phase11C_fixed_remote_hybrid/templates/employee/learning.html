@@ -1,0 +1,155 @@
+{% extends 'base.html' %}
+{% import 'partials/outline.html' as ol with context %}
+{% block title %}My Training Plan{% endblock %}
+{% block breadcrumb %}Employee / My Training Plan{% endblock %}
+{% block content %}
+<div class="page-heading plan-heading">
+  <div>
+    <p class="eyebrow">MY PLAN · RECOMMENDED LEARNING</p>
+    <h1>My Training Plan</h1>
+    <p>{{ plan.plan_summary if plan and plan.plan_summary else 'Recommended learning mapped to your skill gaps, plus anything the scheduler has booked for you.' }}</p>
+  </div>
+  {% if tni %}<a class="button secondary" href="/employee/skills">View skill heatmap</a>{% endif %}
+</div>
+
+{% if tni %}
+{% set s = tni.summary %}
+<div class="metric-grid compact">
+  <article class="metric-card"><p>Open skill gaps</p><strong>{{ s.gaps }}</strong><small>{{ s.high }} high · {{ s.moderate }} moderate</small></article>
+  <article class="metric-card"><p>Gap coverage</p><strong>{{ s.coverage_pct }}%</strong><small>{{ s.covered }} of {{ s.gaps }} gaps have a course</small></article>
+  <article class="metric-card"><p>Time to skill up</p><strong>{{ s.weeks_total }}<small> wks</small></strong><small>One gap at a time (estimate)</small></article>
+  <article class="metric-card"><p>Booked sessions</p><strong>{{ upcoming|length }}</strong><small>Upcoming training &amp; assessments</small></article>
+</div>
+{% endif %}
+
+{# ---- Training outlines from the manager's decision (skill-gap or skill-up) ---- #}
+{% if outlines %}
+<div class="section-heading"><div><h2>Training from your manager's review</h2><p>After reviewing your assessment your manager assigned this training. Agent 5 drafted the sessions; they are booked on your calendar.</p></div><a class="text-link" href="/employee/calendar">Open my calendar →</a></div>
+{% for o in outlines %}{{ ol.outline_card(o, 'employee', open=loop.first) }}{% endfor %}
+{% endif %}
+
+{# ---- Agent 5 plan: only after the manager approves the assessment cycle ---- #}
+{% if plan %}
+{% set has_gaps = plan.steps or plan.unaddressed_gaps or plan.all_confirmed_gaps %}
+<div class="section-heading"><div><h2>AI development plan</h2><p>Agent 5 proposal from your latest assessment, approved by your manager.</p></div><span class="badge purple">A5 proposal</span></div>
+{% if has_gaps %}
+<section class="plan-layout" style="margin-bottom:12px">
+  <div class="card plan-card">
+    {% if plan.steps %}
+    <div class="card-toolbar"><div><h2>Recommended sequence</h2><p>Each step cites the course and the descriptor clause it closes.</p></div></div>
+    <div class="plan-timeline">
+      {% for step in plan.steps %}
+      <article class="plan-step">
+        <div class="plan-step-number">{{ '%02d'|format(step.step_number|int) }}</div>
+        <div class="plan-step-body">
+          <h3>{{ step.skill }}</h3>
+          <p class="plan-skill"><b>Course</b> <a class="text-link" href="/learning/catalog/{{ step.course_id }}">{{ step.course_id }}</a>{% if step.course_title %} · {{ step.course_title }}{% endif %}</p>
+          <p>{{ step.rationale }}</p>
+          <div class="descriptor-box"><small>DESCRIPTOR CLAUSE THIS STEP CLOSES</small><span>{{ step.descriptor_clause_addressed }}</span></div>
+        </div>
+      </article>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="card-toolbar"><div><h2>Recommended sequence</h2><p>No internally-verified course is available yet for these gaps — see "Not yet addressable" and "Additional learning".</p></div></div>
+    {% endif %}
+  </div>
+  <aside class="plan-side">
+    <article class="card">
+      <div class="card-label-row"><span>ESTIMATED EFFORT</span></div>
+      <div class="plan-gap-row"><div><b>{{ plan.duration_estimate.estimated_weeks_one_at_a_time if plan.duration_estimate else '—' }} weeks</b><small>One gap at a time</small></div></div>
+      <div class="plan-gap-row"><div><b>{{ plan.duration_estimate.estimated_weeks_with_two_in_parallel if plan.duration_estimate else '—' }} weeks</b><small>Two gaps in parallel</small></div></div>
+    </article>
+    {% if plan.unaddressed_gaps %}
+    <article class="card">
+      <div class="card-label-row"><span>NOT YET ADDRESSABLE</span></div>
+      {% for gap in plan.unaddressed_gaps %}
+      <div class="plan-gap-row"><div><b>{{ gap.skill }}</b><small>{{ gap.reason }}</small></div><span class="badge {{ 'danger' if gap.is_critical else 'warning' }}">{{ gap.gap_severity }}</span></div>
+      {% endfor %}
+    </article>
+    {% endif %}
+    {% if plan.coursera_suggestions %}
+    <article class="card">
+      <div class="card-label-row"><span>ADDITIONAL LEARNING (UNVERIFIED)</span></div>
+      {% for sug in plan.coursera_suggestions %}
+      <div class="plan-gap-row"><div><b>{{ sug.skill }}</b>
+        {% for c in sug.courses %}<br><small>{{ c.title }}</small>{% else %}<br><small><a href="{{ sug.skill_search_url }}" target="_blank" rel="noopener">Search Coursera for this skill</a></small>{% endfor %}
+      </div></div>
+      {% endfor %}
+    </article>
+    {% endif %}
+    {% if plan.duration_estimate and plan.duration_estimate.note %}
+    <article class="card plan-governance-note"><div class="card-label-row"><span>GOVERNANCE</span></div><small>{{ plan.duration_estimate.note }}</small></article>
+    {% endif %}
+  </aside>
+</section>
+{% else %}
+<div class="card empty-plan-card" style="margin-bottom:12px"><div class="empty-plan-icon">✓</div><h2>No confirmed development gaps</h2><p>Your assessment found no gaps needing training this round.</p></div>
+{% endif %}
+{% elif cycle and cycle.status not in ('manager_approved',) %}
+<div class="notice-card" style="margin-bottom:12px"><b>AI development plan:</b> appears here once your manager approves your assessment (current stage: {{ cycle.status|replace('_', ' ') }}).</div>
+{% endif %}
+
+{# ---- TNI baseline: deterministic gap-to-course mapping, available now ---- #}
+{% if tni %}
+<div class="section-heading"><div><h2>Skill-up path</h2><p>Your TNI gaps in priority order (severity, then critical skills), each mapped to a real catalogue course. Deterministic mapping from the TNI dataset — not an AI decision.</p></div></div>
+<section class="plan-layout">
+  <div class="card viz-card">
+    {% if tni.path %}
+    <ol class="skillup">
+      {% for step in tni.path %}
+      <li>
+        <span class="num">{{ loop.index }}</span>
+        <div>
+          <b>{{ step.skill }}</b>
+          {% if step.course %}
+          <small><a class="text-link" href="/learning/catalog/{{ step.course.course_id }}">{{ step.course.course_id }}</a> · {{ step.course.course_title }}</small>
+          <small>{{ step.course.delivery_type }} · {{ step.tni_recommendation or 'Assign mapped learning and reassess' }}</small>
+          {% else %}
+          <small>No catalogue course covers this skill yet.</small>
+          {% endif %}
+          {% if booked.get(step.course.course_id if step.course else '') %}{% set e = booked[step.course.course_id] %}
+          <small><span class="badge {{ 'success' if e.status == 'completed' else 'blue' }}">✓ {{ 'Completed' if e.status == 'completed' else 'Booked' }}</span> {{ e.date }}{% if e.time %} · {{ e.time }}{% endif %}{% if e.notes and 'Assigned by manager' in e.notes %} · assigned by your manager{% endif %}</small>
+          {% endif %}
+          <span class="level-steps" aria-hidden="true">{% for level in [1, 2, 3, 4, 5] %}<i class="{{ 'achieved' if level <= step.current else 'gap' if level <= step.target else '' }}"></i>{% endfor %}</span>
+        </div>
+        <div class="levels">L{{ step.current }} → L{{ step.target }}<small><br>{{ step.severity }} · wk {{ '%g'|format(step.start_week) }}–{{ '%g'|format(step.end_week) }}</small></div>
+      </li>
+      {% endfor %}
+    </ol>
+    {% else %}
+    {% if s.assessed %}
+    <div class="empty-plan-card"><div class="empty-plan-icon">✓</div><h2>No open skill gaps</h2><p>Every assessed skill is at its role target.{% if s.not_assessed %} {{ s.not_assessed }} skill(s) still need an assessment.{% endif %}</p></div>
+    {% else %}
+    <div class="empty-plan-card"><h2>Assessment pending</h2><p>None of your {{ s.total }} role skills has been assessed yet, so there are no gaps to train for. Your recommended learning appears here after your assessment.</p><a class="button" href="/employee/dashboard">Go to dashboard</a></div>
+    {% endif %}
+    {% endif %}
+  </div>
+
+  <aside class="plan-side">
+    <article class="card">
+      <div class="card-label-row"><span>GAP COVERAGE</span></div>
+      <div class="coverage-meter" role="img" aria-label="{{ s.coverage_pct }}% of gaps covered by a course"><span style="width:{{ s.coverage_pct }}%"></span></div>
+      <small class="muted">{{ s.covered }} of {{ s.gaps }} open gaps have a catalogue course.</small>
+      {% for gap in tni.uncovered %}
+      <div class="plan-gap-row"><div><b>{{ gap.skill }}</b><small>No course mapped yet</small></div><span class="badge {{ 'danger' if gap.severity == 'High' else 'warning' }}">{{ gap.severity }}</span></div>
+      {% endfor %}
+    </article>
+    <article class="card">
+      <div class="card-label-row"><span>MY SCHEDULE</span></div>
+      {% for e in upcoming %}
+      <div class="plan-gap-row"><div><b>{{ e.short_title }}</b><small>{{ e.kind_label }} · {{ e.date }}{% if e.time %} · {{ e.time }}{% endif %}{% if e.duration %} · {{ e.duration }} min{% endif %}</small></div><span class="badge {{ 'blue' if e.kind == 'assessment' else 'warning' }}">{{ e.kind_label }}</span></div>
+      {% else %}
+      <small class="muted">Nothing booked yet. Your scheduler books sessions from this path.</small>
+      {% endfor %}
+    </article>
+  </aside>
+</section>
+{% elif not plan %}
+<div class="card empty-plan-card">
+  <h2>No training plan yet</h2>
+  <p>There's no TNI baseline on file for your account, and your AI development plan appears once your manager approves an assessment. Start from your dashboard.</p>
+  <a class="button" href="/employee/dashboard">Go to dashboard</a>
+</div>
+{% endif %}
+{% endblock %}

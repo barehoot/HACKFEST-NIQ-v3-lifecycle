@@ -1,0 +1,140 @@
+{% extends 'base.html' %}
+{% import 'people/_macros.html' as pm %}
+{% block title %}People & Performance{% endblock %}
+{% block breadcrumb %}{{ current_user.role_label }} / People & Performance{% endblock %}
+{% block content %}
+{% set base_q = {'q': filters.q, 'band': filters.band, 'signal': filters.signal, 'dept': filters.dept_id, 'tower': filters.tower, 'sort': sort, 'manager': manager, 'view': view} %}
+{% set keep_q = {'band': filters.band, 'signal': filters.signal, 'dept': filters.dept_id, 'tower': filters.tower} %}
+<div class="page-heading">
+  <div><p class="eyebrow">EMPLOYEE LIFECYCLE · ON TRACK / OFF TRACK</p>
+    <h1>People & performance</h1>
+    <p>{% if current_user.role == 'manager' %}Your direct reports: status from skills, reviews, assessments, evidence and development follow-through. Open a card for the essentials; open the profile for everything.
+       {% elif mode == 'clusters' %}Everyone in your scope, grouped by line manager. Each tile is one team's band mix and signals; open a team to see the people reporting to that manager.
+       {% else %}Everyone in your scope: status from skills, reviews, assessments, evidence and development follow-through. Open a card for the essentials; open the profile for everything.{% endif %}</p></div>
+  {% if org_viewer %}
+  <form method="post" action="/people/refresh"><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <button class="btn-ghost" type="submit" title="Recalculate everyone's status now (the worker also does this continuously)">↻ Recalculate now</button></form>
+  {% endif %}
+</div>
+{% if notice %}<div class="flash ok" role="status">{{ notice }}</div>{% endif %}
+
+{% if org_viewer %}
+<nav class="view-switch" aria-label="Directory view">
+  <a href="/people?{{ keep_q|query }}" class="{{ 'active' if mode == 'clusters' or manager }}" {{ 'aria-current=page' if mode == 'clusters' }}>◎ By manager</a>
+  <a href="/people?{{ dict(keep_q, view='people')|query }}" class="{{ 'active' if mode == 'people' and not manager }}" {{ 'aria-current=page' if mode == 'people' and not manager }}>▦ All people</a>
+</nav>
+{% endif %}
+
+{% if lead %}
+{% set lead_tone = 'poor' if lead.off_track else 'low' if lead.at_risk else 'good' %}
+<nav class="crumbs" aria-label="Breadcrumb"><a href="/people?{{ keep_q|query }}">All managers</a><span aria-hidden="true">›</span><b>{{ lead.manager_name }}</b></nav>
+<article class="team-lead tone-{{ lead_tone }}">
+  <span class="pc-avatar lg" aria-hidden="true">{{ lead.manager_name.split()[:2]|map('first')|join|upper if lead.manager_id else '?' }}</span>
+  <div class="tl-id"><h2>{{ lead.manager_name }}</h2><small>{{ lead.manager_title or ('Line manager' if lead.manager_id else 'These employees have no line manager in the HR record') }} · {{ lead.team }} direct report(s){% if lead.towers %} · {{ lead.towers.replace(',', ', ') }}{% endif %}</small>
+    {% if lead.flags %}<ul class="sig-list" style="margin-top:6px">{% for f in lead.flags %}<li class="sig tone-{{ f.tone }}">{{ f.label }}</li>{% endfor %}</ul>{% endif %}</div>
+  <div class="tl-stats">
+    <div><span>Avg score</span><strong>{{ lead.avg_score|int if lead.avg_score is not none else '—' }}</strong></div>
+    <div><span>Off track</span><strong class="{{ 'red-text' if lead.off_track }}">{{ lead.off_track }}</strong></div>
+    <div><span>At risk</span><strong class="{{ 'orange-text' if lead.at_risk }}">{{ lead.at_risk }}</strong></div>
+    <div><span>Promotion-ready</span><strong>{{ lead.promotion_ready }}</strong></div>
+  </div>
+</article>
+{% endif %}
+
+<div class="band-strip" aria-label="Status bands">
+  {% for b in summary %}
+  {% set bq = {'band': b.band if filters.band != b.band else '', 'manager': manager, 'view': view, 'signal': filters.signal, 'dept': filters.dept_id, 'tower': filters.tower} %}
+  <a class="band-tile tone-{{ b.tone }}{{ ' active' if filters.band == b.band }}" href="/people?{{ bq|query }}">
+    <span>{{ b.band }}</span><strong>{{ b.count }}</strong><small>{{ b.tier or 'needs evidence' }} · {{ b.pct }}%</small></a>
+  {% endfor %}
+</div>
+
+<form class="lc-filters" method="get" action="/people" data-autosubmit role="search">
+  {% if manager %}<input type="hidden" name="manager" value="{{ manager }}">{% endif %}
+  {% if view %}<input type="hidden" name="view" value="{{ view }}">{% endif %}
+  <label class="visually-hidden" for="people-q">Search people</label>
+  <input id="people-q" type="search" name="q" value="{{ filters.q }}" placeholder="{{ 'Search a person by name, role or ID' if mode == 'clusters' else 'Search name, role or ID' }}" maxlength="80">
+  <select name="band" aria-label="Status band"><option value="">All bands</option>
+    {% for b in bands %}<option value="{{ b }}" {{ 'selected' if filters.band == b }}>{{ b }}{% if tiers.get(b) %} ({{ tiers[b] }}){% endif %}</option>{% endfor %}</select>
+  <select name="signal" aria-label="Signal"><option value="">Any signal</option>
+    {% for key, label in signals.items() %}<option value="{{ key }}" {{ 'selected' if filters.signal == key }}>{{ label }}</option>{% endfor %}</select>
+  {% if departments %}<select name="dept" aria-label="Department"><option value="">All departments</option>
+    {% for d in departments %}<option value="{{ d.dept_id }}" {{ 'selected' if filters.dept_id == d.dept_id }}>{{ d.name }}</option>{% endfor %}</select>{% endif %}
+  <select name="tower" aria-label="Vertical"><option value="">All verticals</option>
+    {% for t in towers %}<option value="{{ t }}" {{ 'selected' if filters.tower == t }}>{{ t }}</option>{% endfor %}</select>
+  <select name="sort" aria-label="Sort"><option value="attention">Sort</option>
+    {% for key, label in sorts.items() %}<option value="{{ key }}" {{ 'selected' if sort == key }}>{{ label }}</option>{% endfor %}</select>
+  <button class="btn-ghost" type="submit">Search</button>
+  {% if filters.q or filters.band or filters.signal or filters.dept_id or filters.tower %}<a class="text-link" href="/people{{ '?manager=' ~ manager|urlencode if manager else '?view=people' if view else '' }}">Clear</a>{% endif %}
+</form>
+
+{% if mode == 'clusters' %}
+  {% if clusters %}
+  <div class="cluster-grid">
+    {% for c in clusters %}
+    {% set concern = (c.at_risk or 0) + (c.off_track or 0) %}
+    {% set tone = 'poor' if c.off_track and concern / c.team >= 0.4 else 'low' if concern else 'good' if c.on_track or c.exceeding else 'none' %}
+    {% set cq = {'manager': c.manager_id or 'none', 'band': filters.band, 'signal': filters.signal, 'dept': filters.dept_id, 'tower': filters.tower} %}
+    <a class="cluster-card tone-{{ tone }}" href="/people?{{ cq|query }}" aria-label="{{ c.manager_name }}: {{ c.team }} direct reports, {{ concern }} at risk or off track">
+      <div class="cc-top">
+        <span class="pc-avatar" aria-hidden="true">{{ c.manager_name.split()[:2]|map('first')|join|upper if c.manager_id else '?' }}</span>
+        <div class="pc-id"><b>{{ c.manager_name }}</b><small>{{ c.manager_title or ('Unassigned' if not c.manager_id else 'Line manager') }}{% if c.towers %} · {{ c.towers.replace(',', ', ') }}{% endif %}</small></div>
+        <span class="cc-team"><strong>{{ c.team }}</strong><small>reports</small></span>
+      </div>
+      <div class="stack-bar" role="img" aria-label="Exceeding {{ c.exceeding }}, on track {{ c.on_track }}, at risk {{ c.at_risk }}, off track {{ c.off_track }}, not enough data {{ c.no_data }}">
+        {% for n, t in [(c.exceeding, 'best'), (c.on_track, 'good'), (c.at_risk, 'low'), (c.off_track, 'poor'), (c.no_data, 'none')] %}{% if n %}<i class="tone-{{ t }}" style="width: {{ (100 * n / c.team)|round(1) }}%"></i>{% endif %}{% endfor %}
+      </div>
+      <div class="cc-metrics">
+        <div><span>Avg score</span><strong>{{ c.avg_score|int if c.avg_score is not none else '—' }}</strong></div>
+        <div><span>Exceeding</span><strong>{{ c.exceeding }}</strong></div>
+        <div><span>At risk</span><strong class="{{ 'orange-text' if c.at_risk }}">{{ c.at_risk }}</strong></div>
+        <div><span>Off track</span><strong class="{{ 'red-text' if c.off_track }}">{{ c.off_track }}</strong></div>
+      </div>
+      {% if c.flags or c.escalated or c.probation %}<ul class="sig-list">
+        {% for f in c.flags %}<li class="sig tone-{{ f.tone }}">{{ f.label }}</li>{% endfor %}
+        {% if c.escalated %}<li class="sig tone-bad">{{ c.escalated }} escalated</li>{% endif %}
+        {% if c.probation %}<li class="sig tone-info">{{ c.probation }} on probation</li>{% endif %}
+      </ul>{% endif %}
+      <span class="cc-open">View {{ c.team }} employee{{ 's' if c.team != 1 }} →</span>
+    </a>
+    {% endfor %}
+  </div>
+  <div class="lc-pager">
+    <span>{{ (result.page - 1) * result.page_size + 1 }}–{{ (result.page - 1) * result.page_size + clusters|length }} of {{ result.total }} manager team(s)</span>
+    {% if result.pages > 1 %}
+    <nav aria-label="Pages">
+      {% if result.page > 1 %}<a href="/people?{{ base_q|query }}&page={{ result.page - 1 }}" aria-label="Previous page">‹</a>{% endif %}
+      {% for p in range([1, result.page - 2]|max, [result.pages, result.page + 2]|min + 1) %}
+        {% if p == result.page %}<span class="cur" aria-current="page">{{ p }}</span>{% else %}<a href="/people?{{ base_q|query }}&page={{ p }}">{{ p }}</a>{% endif %}
+      {% endfor %}
+      {% if result.page < result.pages %}<a href="/people?{{ base_q|query }}&page={{ result.page + 1 }}" aria-label="Next page">›</a>{% endif %}
+    </nav>
+    {% endif %}
+  </div>
+  {% else %}
+  <div class="lc-empty">No teams match these filters.</div>
+  {% endif %}
+  <p class="muted-copy" style="margin-top:14px">Teams are sorted with the largest share of people at risk or off track first. <b>Needs support</b>: 40%+ of a team of 3 or more is at risk or off track. <b>Wide span</b>: more than 15 direct reports. These are prompts for a conversation with the manager, not ratings of them.</p>
+{% else %}
+  {% if result.cards %}
+  <div class="people-grid">
+    {% for c in result.cards %}{{ pm.person_card(c) }}{% endfor %}
+  </div>
+  <div class="lc-pager">
+    <span>{{ (result.page - 1) * result.page_size + 1 }}–{{ (result.page - 1) * result.page_size + result.cards|length }} of {{ result.total }} · status as of {{ result.cards[0].computed_at }} UTC</span>
+    {% if result.pages > 1 %}
+    <nav aria-label="Pages">
+      {% if result.page > 1 %}<a href="/people?{{ base_q|query }}&page={{ result.page - 1 }}" aria-label="Previous page">‹</a>{% endif %}
+      {% for p in range([1, result.page - 2]|max, [result.pages, result.page + 2]|min + 1) %}
+        {% if p == result.page %}<span class="cur" aria-current="page">{{ p }}</span>{% else %}<a href="/people?{{ base_q|query }}&page={{ p }}">{{ p }}</a>{% endif %}
+      {% endfor %}
+      {% if result.page < result.pages %}<a href="/people?{{ base_q|query }}&page={{ result.page + 1 }}" aria-label="Next page">›</a>{% endif %}
+    </nav>
+    {% endif %}
+  </div>
+  {% else %}
+  <div class="lc-empty">No one matches these filters.</div>
+  {% endif %}
+  <p class="muted-copy" style="margin-top:14px">Bands: <b>Exceeding</b> ≥ 80 (best) · <b>On track</b> ≥ 65 (good) · <b>At risk</b> ≥ 50 (low) · <b>Off track</b> &lt; 50 (poor). The five bars on each card are the factors (skills, review, assessment, evidence, development); hatched means no data yet, which never counts against anyone. Status is decision support for a conversation, not a decision.</p>
+{% endif %}
+{% endblock %}

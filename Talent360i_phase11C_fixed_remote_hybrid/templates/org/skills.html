@@ -1,0 +1,68 @@
+{% extends 'base.html' %}
+{% block title %}Skill Catalogue{% endblock %}
+{% block breadcrumb %}{{ current_user.role_label }} / Skill Catalogue{% endblock %}
+{% block content %}
+<div class="page-heading"><div><p class="eyebrow">ORGANISATION · SKILL CATALOGUE</p><h1>Skill catalogue</h1>
+  <p>Every skill a job profile can require, with L1–L5 behaviour indicators. Add skills by hand, or let Agent 8 recommend new ones from logged market trends: you accept each one. Job profiles then require them through recorded requirement changes.</p></div>
+  <a class="btn-ghost" href="/org/job-profiles">Job profiles →</a></div>
+{% if notice %}<div class="flash ok" role="status">{{ notice }}</div>{% endif %}
+{% if error %}<div class="flash err" role="alert"><b>Not saved:</b> {{ error }}</div>{% endif %}
+
+<section class="lc-grid-2 lc-section">
+  <article class="lc-card" id="recommend">
+    <div class="lc-card-head"><div><h2>✦ New skill recommendations</h2><p>Agent 8 looks at the catalogue and the trends logged on the job-profiles page, and proposes skills the organisation does not have yet.</p></div></div>
+    <form method="post" action="/org/skills/suggest" class="lc-form" data-busy-label="Agent 8 is scanning trends…"><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <div class="row"><label>Vertical <select name="tower"><option value="">All verticals</option>{% for v in verticals %}<option value="{{ v.code }}" {{ 'selected' if selected_tower == v.code }}>{{ v.code }} · {{ v.name }}</option>{% endfor %}</select></label>
+        <label>Focus <span class="hint">Optional</span><input name="focus" maxlength="500" placeholder="e.g. automation of the close, e-invoicing mandates"></label></div>
+      <div class="actions"><button class="btn-ai" type="submit">✦ Recommend new skills</button></div></form>
+
+    {% if suggestions %}
+    <div class="rec-list">
+      {% for s in suggestions %}{% set p = s.payload %}
+      <div class="rec">
+        <div class="rec-head"><b>{{ s.skill }}</b>
+          <span class="trend-dir {{ p.direction or 'emerging' }}">{{ (p.direction or 'emerging')|title }}</span>
+          {% if s.tower %}<span class="sig">{{ s.tower }}</span>{% endif %}
+          {% if s.generated_by == 'agent' %}<span class="ai-tag">✦ AI</span>{% else %}<span class="sig tone-warn">Rules</span>{% endif %}</div>
+        {% if s.rationale %}<p class="pitch-why">{{ s.rationale }}</p>{% endif %}
+        {% if p.indicators %}<details class="lc-disclosure"><summary>L1–L5 behaviour indicators</summary>
+          <ol class="level-list">{% for i in p.indicators %}<li><b>L{{ loop.index }}</b> {{ i }}</li>{% endfor %}</ol></details>{% endif %}
+        <form method="post" action="/org/skills/suggestions/{{ s.suggestion_id }}/accept" class="lc-form rec-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <div class="row"><label>Name <input name="skill" maxlength="80" value="{{ s.skill }}"></label>
+            <label>Capability <input name="capability" maxlength="60" value="{{ p.capability or '' }}"></label></div>
+          <div class="actions"><button class="button" type="submit">Add to catalogue</button>
+            <button class="btn-ghost" type="submit" formaction="/org/skills/suggestions/{{ s.suggestion_id }}/dismiss">Dismiss</button></div></form>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}<div class="lc-empty" style="margin-top:12px">No recommendations waiting. Ask Agent 8 above.</div>{% endif %}
+    {% if recent %}<p class="lc-meta" style="margin-top:10px">Recently added from recommendations: {% for r in recent %}<b>{{ r.skill }}</b>{{ ', ' if not loop.last }}{% endfor %}.</p>{% endif %}
+  </article>
+
+  <article class="lc-card" id="add">
+    <h2>＋ Add a skill</h2><p class="lc-sub">Leave a level blank to use the generic wording for that level.</p>
+    <form method="post" action="/org/skills" class="lc-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <div class="row"><label>Skill <input name="skill" maxlength="80" required placeholder="e.g. Process Mining"></label>
+        <label>Vertical <select name="tower"><option value="">Cross-vertical</option>{% for v in verticals %}<option value="{{ v.code }}" {{ 'selected' if selected_tower == v.code }}>{{ v.code }}</option>{% endfor %}</select></label>
+        <label>Capability <input name="capability" maxlength="60" list="capabilities" placeholder="Technical Expertise"></label></div>
+      <datalist id="capabilities">{% for c in ['Technical Expertise', 'Process Excellence', 'Digital & Automation', 'Controls & Compliance', 'Stakeholder Management', 'Leadership', 'Analytics'] %}<option value="{{ c }}">{% endfor %}</datalist>
+      {% for n in range(1, 6) %}
+      <label>L{{ n }} behaviour <input name="l{{ n }}" maxlength="300" placeholder="{{ generic.get(n, '') }}"></label>
+      {% endfor %}
+      <div class="actions"><button class="button" type="submit">Add to catalogue</button></div></form>
+  </article>
+</section>
+
+<section class="lc-section">
+  <div class="section-heading"><div><h2>Catalogue ({{ total }})</h2><p>How many job profiles require each skill, and how many as critical.</p></div>
+    <nav class="pill-row" aria-label="Vertical filter"><a href="/org/skills" class="{{ 'selected' if not selected_tower }}">All</a>{% for v in verticals %}<a href="/org/skills?tower={{ v.code }}" class="{{ 'selected' if selected_tower == v.code }}">{{ v.code }}</a>{% endfor %}</nav></div>
+  {% for tower, skills in groups.items() %}
+  <article class="lc-card" style="margin-bottom:14px"><h2>{{ tower }} <small class="muted">· {{ skills|length }} skill(s)</small></h2>
+    <div class="table-wrap"><table><thead><tr><th>Skill</th><th>Capability</th><th>Required by</th><th>Levels</th></tr></thead><tbody>
+      {% for k in skills %}<tr><td><b>{{ k.skill }}</b><small>{{ k.skill_id }}</small></td><td>{{ k.capability or '—' }}</td>
+        <td>{% if k.roles %}{{ k.roles }} role(s){% if k.critical_in %} · <span class="badge warning">{{ k.critical_in }} critical</span>{% endif %}{% else %}<span class="muted">Not used yet</span>{% endif %}</td>
+        <td><details class="lc-disclosure"><summary>L1–L5</summary><ol class="level-list">{% for n in range(1, 6) %}<li><b>L{{ n }}</b> {{ k['l' ~ n ~ '_indicator'] or '—' }}</li>{% endfor %}</ol></details></td></tr>{% endfor %}
+    </tbody></table></div></article>
+  {% else %}<div class="lc-empty">No skills in this vertical yet.</div>{% endfor %}
+</section>
+{% endblock %}

@@ -1,0 +1,90 @@
+{# Month calendar (grid on wide screens, agenda list everywhere). Shared by the
+   scheduler's calendar and the employee's own calendar. #}
+{% macro chip_tip(item, show_who) -%}
+{{ item.title }}{% if show_who %}&#10;{{ item.who }}{% endif %}{% if item.detail %}&#10;{{ item.detail }}{% endif %}{% if item.duration %}&#10;{{ item.duration }} min{% endif %}{% if item.notes %}&#10;{{ item.notes }}{% endif %}
+{%- endmacro %}
+{% macro calendar(cal, base, csrf_token, can_cancel=False, show_who=True, empty_text='Nothing scheduled this month.', ics_url=none) %}
+<nav class="pill-row" aria-label="Event type filter">
+  {% for key, label in [('all', 'Everything'), ('assessment', 'Assessments'), ('training', 'Training')] %}
+  <a href="{{ base }}?month={{ cal.month }}&kind={{ key }}" class="{{ 'selected' if cal.kind == key else '' }}">{{ label }}</a>
+  {% endfor %}
+</nav>
+
+<section class="card viz-card">
+  <div class="cal-toolbar">
+    <div class="cal-nav">
+      <a href="{{ base }}?month={{ cal.prev }}&kind={{ cal.kind }}" aria-label="Previous month">‹</a>
+      <a href="{{ base }}?month={{ cal.this_month }}&kind={{ cal.kind }}">Today</a>
+      <a href="{{ base }}?month={{ cal.next }}&kind={{ cal.kind }}" aria-label="Next month">›</a>
+      <h2>{{ cal.label }}</h2>
+    </div>
+    <div class="viz-legend">
+      <span><i class="sw-assessment"></i>Assessment</span>
+      <span><i class="sw-training"></i>Training</span>
+      <span><i class="sw-activity"></i>Assessment activity</span>
+      {% if ics_url %}<a class="btn-ghost cal-ics" href="{{ ics_url }}" download title="Download the bookings as an .ics file for Outlook, Google or Apple Calendar">⤓ Add to Outlook (.ics)</a>{% endif %}
+    </div>
+  </div>
+
+  <div class="cal-grid" role="grid" aria-label="{{ cal.label }} calendar">
+    {% for d in cal.weekdays %}<div class="cal-dow" role="columnheader">{{ d }}</div>{% endfor %}
+    {% for week in cal.weeks %}{% for day in week %}
+    <div class="cal-day{{ ' out' if not day.in_month }}{{ ' today' if day.is_today }}{{ ' weekend' if day.is_weekend }}" role="gridcell" aria-label="{{ day.date }}{% if day.is_today %}, today{% endif %}">
+      <span class="cal-date">{{ day.day }}</span>
+      {% for item in day['items'] %}
+      <span class="cal-chip {{ item.kind }}" tabindex="0"
+            data-tip-title="{{ item.kind_label }}{% if item.time %} · {{ item.time }}{% endif %}"
+            data-tip="{{ chip_tip(item, show_who) }}">{% if item.time %}<b>{{ item.time }}</b> {% endif %}{% if show_who %}{{ item.user_id or item.who }} · {% endif %}{{ item.short_title }}</span>
+      {% endfor %}
+      {% if day.more %}<a class="cal-more" href="#agenda-{{ day.date }}">+{{ day.more }} more</a>{% endif %}
+    </div>
+    {% endfor %}{% endfor %}
+  </div>
+
+  {% set ns = namespace(items=0) %}{% for day in cal.agenda %}{% set ns.items = ns.items + day['items']|length %}{% endfor %}
+  {% set agenda_items = ns.items %}
+  {# Native <details>: works without JavaScript; lifecycle.js adds expand / collapse all and remembers the choice. #}
+  <details class="agenda-panel" id="agenda" open data-agenda-panel="{{ base }}">
+    <summary class="agenda-summary">
+      <span class="agenda-title"><b>Agenda · {{ cal.label }}</b>
+        <small>{{ agenda_items }} item{{ 's' if agenda_items != 1 }} on {{ cal.agenda|length }} day{{ 's' if cal.agenda|length != 1 }}</small></span>
+      <span class="agenda-toggle" aria-hidden="true"><span class="when-open">▾ Minimise</span><span class="when-closed">▸ Expand agenda</span></span>
+    </summary>
+    {% if cal.agenda %}
+    <div class="agenda-tools" hidden>
+      <button type="button" class="link-button" data-agenda-all="open">Expand all days</button>
+      <span aria-hidden="true">·</span>
+      <button type="button" class="link-button" data-agenda-all="close">Collapse all days</button>
+      <span aria-hidden="true">·</span>
+      <button type="button" class="link-button" data-agenda-all="upcoming">Only today onwards</button>
+    </div>
+    {% endif %}
+    {% for day in cal.agenda %}
+    <details class="agenda-day" id="agenda-{{ day.date }}" data-date="{{ day.date }}" open>
+      <summary><h3>{{ day.label }}{% if day.is_today %}<span class="badge blue">Today</span>{% endif %}</h3>
+        <small class="agenda-count">{{ day['items']|length }} item{{ 's' if day['items']|length != 1 }}</small></summary>
+      {% for item in day['items'] %}
+      <div class="agenda-item">
+        <time>{{ item.time or 'All day' }}</time>
+        <i class="sw-{{ item.kind }}" aria-hidden="true"></i>
+        <div>
+          <b>{{ item.title }}</b>
+          <small>{{ item.kind_label }}{% if show_who %} · {{ item.who }}{% endif %}{% if item.detail %} · {{ item.detail }}{% endif %}{% if item.duration %} · {{ item.duration }} min{% endif %}</small>
+          {% if item.notes %}<small>{{ item.notes }}</small>{% endif %}
+        </div>
+        {% if can_cancel and item.can_cancel %}
+        <form method="post" action="{{ base }}/events/{{ item.id }}/cancel">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="month" value="{{ cal.month }}">
+          <button class="link-button" type="submit" aria-label="Cancel {{ item.title }} for {{ item.who }}">Cancel</button>
+        </form>
+        {% else %}<span></span>{% endif %}
+      </div>
+      {% endfor %}
+    </details>
+    {% else %}
+    <p class="muted-copy">{{ empty_text }}</p>
+    {% endfor %}
+  </details>
+</section>
+
+{% endmacro %}

@@ -1,0 +1,63 @@
+{% extends 'base.html' %}
+{% block title %}Onboard a Job Profile{% endblock %}
+{% block breadcrumb %}{{ current_user.role_label }} / Job Profiles / Onboard{% endblock %}
+{% macro stepper(current) -%}
+<ol class="stepper" aria-label="Onboarding steps">
+  {% for n, label in [(1, 'Vertical'), (2, 'Department'), (3, 'Job profile'), (4, 'Required skills · AI'), (5, 'Ready')] %}
+  <li class="{{ 'done' if n < current else 'current' if n == current else '' }}" {{ 'aria-current=step' if n == current }}><span>{{ '✓' if n < current else n }}</span>{{ label }}</li>
+  {% endfor %}
+</ol>
+{%- endmacro %}
+{% block content %}
+<a class="text-link" href="/org/job-profiles">← Job profiles</a>
+<div class="page-heading" style="margin-top:8px"><div><p class="eyebrow">ORGANISATION · ONBOARD A NEW ROLE</p><h1>Onboard a job profile</h1>
+  <p>Place the role in the organisation (a vertical and a department, existing or new), describe it, and Agent 8 pitches the skills it should require. You review every skill before it applies; then the readiness checklist shows what is left before people can be assessed.</p></div></div>
+{{ stepper(1) }}
+{% if notice %}<div class="flash ok" role="status">{{ notice }}</div>{% endif %}
+{% if error %}<div class="flash err" role="alert"><b>Not created:</b> {{ error }}</div>{% endif %}
+
+<form method="post" action="/org/onboard" class="lc-form onboard-form" data-busy-label="Creating the role and asking Agent 8…">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  {% if form.posting_id %}<input type="hidden" name="posting_id" value="{{ form.posting_id }}">
+  <div class="flash ok" role="status">Prefilled from the internal posting “{{ form.name }}”. Check the summary, pick a vertical and grade; the posting is mapped to the new job profile.</div>{% endif %}
+
+  <section class="lc-card onboard-step" aria-labelledby="step-vertical">
+    <div class="step-head"><span class="step-no">1</span><div><h2 id="step-vertical">Vertical</h2><p class="lc-sub">The top of the organisation tree (AP, O2C, R2R…). Create one for a new line of business, e.g. FP&amp;A or Tax.</p></div></div>
+    <label>Vertical <select name="vertical" data-reveal="vertical" required>
+      {% for v in verticals %}<option value="{{ v.code }}" {{ 'selected' if form.vertical == v.code }}>{{ v.code }} · {{ v.name }} ({{ v.roles }} role{{ 's' if v.roles != 1 }})</option>{% endfor %}
+      <option value="__new__" {{ 'selected' if form.vertical == '__new__' }}>＋ New vertical…</option></select></label>
+    <div class="reveal-box" data-reveal-for="vertical" data-reveal-value="__new__">
+      <div class="row"><label>Code <span class="hint">2-8 letters/digits</span><input name="new_vertical_code" maxlength="8" value="{{ form.new_vertical_code or '' }}" placeholder="FPA" style="text-transform:uppercase"></label>
+        <label>Name <input name="new_vertical_name" maxlength="60" value="{{ form.new_vertical_name or '' }}" placeholder="Financial Planning & Analysis"></label></div>
+      <label>What it covers <input name="new_vertical_description" maxlength="400" value="{{ form.new_vertical_description or '' }}" placeholder="Budgeting, forecasting, management reporting"></label>
+    </div>
+  </section>
+
+  <section class="lc-card onboard-step" aria-labelledby="step-dept">
+    <div class="step-head"><span class="step-no">2</span><div><h2 id="step-dept">Department</h2><p class="lc-sub">A department's leader sees its people on their dashboards. Optional, but the readiness check asks for one.</p></div></div>
+    <label>Department <select name="department" data-reveal="department">
+      <option value="">— Decide later</option>
+      {% for d in departments %}<option value="{{ d.dept_id }}" {{ 'selected' if form.department == d.dept_id }}>{{ d.name }}{% if d.tower %} · {{ d.tower }}{% endif %}</option>{% endfor %}
+      <option value="__new__" {{ 'selected' if form.department == '__new__' }}>＋ New department…</option></select></label>
+    <div class="reveal-box" data-reveal-for="department" data-reveal-value="__new__">
+      <div class="row"><label>Name <input name="new_department_name" maxlength="80" value="{{ form.new_department_name or '' }}" placeholder="Planning & Analytics"></label>
+        <label>Leader <select name="new_department_leader"><option value="">—</option>{% for l in leaders %}<option value="{{ l.user_id }}" {{ 'selected' if form.new_department_leader == l.user_id }}>{{ l.full_name }}</option>{% endfor %}</select></label></div>
+    </div>
+  </section>
+
+  <section class="lc-card onboard-step" aria-labelledby="step-job">
+    <div class="step-head"><span class="step-no">3</span><div><h2 id="step-job">Job profile</h2><p class="lc-sub">The more concrete the summary and responsibilities, the better Agent 8's skill pitch and Agent 1's resume matching.</p></div></div>
+    <div class="row"><label>Job title <input name="name" maxlength="120" required value="{{ form.name or '' }}" placeholder="e.g. FP&A Analyst"></label>
+      <label>Process group <input name="process_group" maxlength="80" value="{{ form.process_group or '' }}" placeholder="e.g. Forecasting"></label>
+      <label>Grade <input name="grade" maxlength="20" required value="{{ form.grade or '' }}" placeholder="B3, B4, P3 or B3/B4"></label></div>
+    <label>Role summary <span class="hint">30+ characters · used for resume matching and the skill pitch</span>
+      <textarea name="summary" maxlength="1000" required placeholder="Builds the monthly rolling forecast and variance commentary for the business units…">{{ form.summary or '' }}</textarea></label>
+    <label>Key responsibilities <textarea name="responsibilities" maxlength="1500" placeholder="One per line: driver-based forecasting, variance analysis, management pack, stakeholder reviews…">{{ form.responsibilities or '' }}</textarea></label>
+    <label>Skills in plain words <span class="hint">Optional hints for Agent 8</span><input name="skills_text" maxlength="800" value="{{ form.skills_text or '' }}" placeholder="Excel modelling, Power BI, variance analysis, business partnering"></label>
+    <label class="check ai-choice"><input type="checkbox" name="ai" value="1" {{ 'checked' if not form or form.ai }}> <span><b>✦ Ask Agent 8 to pitch the required skills</b> <small>Reuses catalogue skills first, proposes new ones only where needed, each with a target level, criticality and the behaviour expected. Takes a few seconds.</small></span></label>
+  </section>
+
+  <div class="actions onboard-actions"><button class="button" type="submit">Create job profile & continue →</button>
+    <span class="lc-meta">Next: review the pitched skills (step 4).</span></div>
+</form>
+{% endblock %}

@@ -1,0 +1,31 @@
+{% extends 'base.html' %}
+{% block title %}Assessments{% endblock %}
+{% block breadcrumb %}Employee / Assessments{% endblock %}
+{% block content %}
+<div class="page-heading"><div><p class="eyebrow">ASSESSMENT CENTRE</p><h1>Assessments</h1><p>Everything assessed or scheduled for you: your resume-matched assessments, assessments the scheduler booked, and your TNI skill baseline. Scores are shared with your manager, not shown here.</p></div><a class="button secondary" href="/employee/calendar">Open my calendar</a></div>
+
+<div class="metric-grid compact">
+  <article class="metric-card"><p>In progress</p><strong>{{ counts['In progress'] }}</strong><small>Waiting on you or your manager</small></article>
+  <article class="metric-card"><p>Pending</p><strong>{{ counts['Pending'] }}</strong><small>Not started yet</small></article>
+  <article class="metric-card"><p>Scheduled</p><strong>{{ counts['Scheduled'] }}</strong><small>Booked on your calendar</small></article>
+  <article class="metric-card"><p>Completed</p><strong>{{ counts['Completed'] }}</strong><small>Finished and reviewed</small></article>
+</div>
+
+<div class="status-tabs"><button class="selected" data-status="all">All</button>{% for g in ['In progress', 'Pending', 'Scheduled', 'Completed'] %}<button data-status="{{ g }}">{{ g }} ({{ counts[g] }})</button>{% endfor %}</div>
+<div class="card table-card"><div class="table-wrap"><table>
+  <thead><tr><th>Assessment</th><th>Type</th><th>Status</th><th>Date</th><th></th></tr></thead>
+  <tbody>
+  {% for item in assessments %}
+  <tr data-assessment-status="{{ item.group }}">
+    <td><b>{{ item.name }}</b>{% if item.detail %}<small>{{ item.detail }}</small>{% endif %}</td>
+    <td>{{ item.kind }}</td>
+    <td><span class="badge {{ 'blue' if item.group == 'Scheduled' else 'warning' if item.group in ('Pending', 'In progress') else 'success' }}">{{ item.group }}</span><small>{{ item.stage }}</small>{% if item.note %}<small>Manager's note: “{{ item.note }}”</small>{% endif %}</td>
+    <td>{{ item.date or '—' }}</td>
+    <td>{% if item.action %}<a class="text-link" href="{{ item.action[1] }}">{{ item.action[0] }} →</a>{% endif %}</td>
+  </tr>
+  {% else %}
+  <tr><td colspan="5" class="empty">Nothing yet. Upload your resume on the dashboard to start an assessment.</td></tr>
+  {% endfor %}
+  </tbody>
+</table></div></div>
+{% endblock %}

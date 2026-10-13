@@ -1,0 +1,117 @@
+{# Agent 9 performance summary next to its fact sheet, and the career-mobility panel of the 360 profile. #}
+
+{% macro refs(items, facts, uid) -%}
+{% set ids = {} %}{% for e in facts.evidence %}{% set _ = ids.update({e.ref: e.evidence_id}) %}{% endfor %}
+<ul class="sum-list">{% for i in items %}<li>{{ i.text }}{% for r in i.refs %} <a class="ref-chip" href="#ev-{{ ids.get(r, '') }}" title="Open the evidence item">{{ r }}</a>{% endfor %}</li>{% endfor %}</ul>
+{%- endmacro %}
+
+{% macro fact_sheet(f) -%}
+<div class="fact-sheet">
+  <p class="lc-meta">Period {{ f.window.from }} → {{ f.window.to }} · status <b>{{ f.band }}</b>{% if f.score is not none %} ({{ f.score }}/100){% endif %}</p>
+  <h3 class="sub-h">What the record rests on</h3>
+  {% set total = f.evidence|length %}
+  {% if total %}
+  <div class="mix-bar" role="img" aria-label="{% for k, n in f.mix.items() %}{{ k }} {{ n }}{{ ', ' if not loop.last }}{% endfor %}">
+    {% for k, n in f.mix.items() %}<i class="mix-{{ loop.index0 % 5 }}" style="width: {{ (100 * n / total)|round(1) }}%"></i>{% endfor %}</div>
+  <ul class="mix-legend">{% for k, n in f.mix.items() %}<li><i class="mix-{{ loop.index0 % 5 }}"></i>{{ k }} · {{ n }}</li>{% endfor %}</ul>
+  <p class="lc-meta">{{ f.positive }} positive · {{ f.negative }} negative · {{ f.evidence|selectattr('ai_read')|list|length }} read by Agent 7{% if f.private_notes %} · {{ f.private_notes }} private note(s) not used{% endif %}</p>
+  {% else %}<p class="lc-meta">No shared evidence in the period.</p>{% endif %}
+  <h3 class="sub-h">Manager reviews</h3>
+  {% if f.ratings %}<div class="rating-strip">{% for r in f.ratings|reverse %}<span class="rating-pill r{{ r.rating }}" title="{{ r.period }}">{{ r.period }} · {{ r.rating }}/5</span>{% endfor %}</div>
+  {% else %}<p class="lc-meta">No shared review yet.</p>{% endif %}
+  <h3 class="sub-h">Skills achieved in the period</h3>
+  {% if f.skills_achieved %}<ul class="sum-list">{% for s in f.skills_achieved %}<li><b>{{ s.skill }}</b> certified L{{ s.level }}{% if s.previous is not none %} (from L{{ s.previous }}){% endif %} · {{ s.date }}</li>{% endfor %}</ul>
+  {% else %}<p class="lc-meta">None certified in the period.</p>{% endif %}
+  <h3 class="sub-h">Learning</h3>
+  <ul class="sum-list">
+    <li>{{ f.learning.completed|length }} training session(s) completed{% if f.learning.completed %}: {{ f.learning.completed[:3]|join(', ') }}{% endif %}; {{ f.learning.booked }} booked ahead</li>
+    <li>Development actions: {{ f.learning.actions_done }} done · {{ f.learning.actions_open }} open · {{ f.learning.actions_overdue }} overdue</li>
+    {% if f.learning.curve.today_avg is not none %}<li>Learning curve: L{{ f.learning.curve.today_avg }} today → L{{ f.learning.curve.projected_avg }} in {{ f.learning.curve.weeks }} weeks (target L{{ f.learning.curve.target_avg }})</li>{% endif %}
+  </ul>
+  {% if f.promotion %}<h3 class="sub-h">Readiness for {{ f.promotion.target_role }}{% if f.promotion.cross_department %} <span class="sig tone-info">Cross-department</span>{% endif %}</h3>
+  <p class="lc-meta"><b>{{ f.promotion.level }}</b> · {{ f.promotion.pct }}% of skills at target on assessed levels ({{ f.promotion.pct_with_cv }}% with CV claims){% if f.promotion.critical_missed %} · critical gaps: {{ f.promotion.critical_missed|join(', ') }}{% endif %}</p>{% endif %}
+</div>
+{%- endmacro %}
+
+{% macro summary_section(uid, summaries, types, targets, selected, can_generate, can_edit, csrf_token) -%}
+{% set current = summaries.get(selected) %}
+<section id="summary" class="lc-section">
+  <article class="lc-card">
+    <div class="lc-card-head"><div><h2>Performance summary <span class="ai-tag">Agent 9</span></h2>
+      <p>For a mid-year or annual review, a 1:1 or a promotion discussion: manager reviews, evidence tagged from email and Teams, notes read by Agent 7, skills achieved and the learning curve, in one place. Every point cites its evidence; the fact sheet beside it is calculated by rules.</p></div>
+      {% if can_generate %}
+      <form method="post" action="/people/{{ uid }}/summaries" class="sum-form" data-busy-label="Agent 9 is reading the record…"><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <label class="visually-hidden" for="sum-type">Review type</label>
+        <select id="sum-type" name="review_type">{% for k, label in types.items() %}<option value="{{ k }}" {{ 'selected' if k == selected }}>{{ label }}</option>{% endfor %}</select>
+        {% if targets %}<label class="visually-hidden" for="sum-target">Promotion target</label>
+        <select id="sum-target" name="target_role_id" title="Used for a promotion-readiness summary">{% for t in targets %}<option value="{{ t.role_id }}">{{ t.kind }}: {{ t.role_name }} ({{ t.tower }})</option>{% endfor %}</select>{% endif %}
+        <button class="btn-ai" type="submit">✦ Summarise</button></form>
+      {% endif %}</div>
+    <nav class="pill-row" aria-label="Summary type">{% for k, label in types.items() %}<a href="/people/{{ uid }}?summary={{ k }}#summary" class="{{ 'selected' if k == selected }}">{{ label }}{% if summaries.get(k) %} ✓{% endif %}</a>{% endfor %}</nav>
+    {% if current %}{% set s = current.summary %}{% set f = current.facts %}
+    <div class="lc-grid-2 sum-grid">
+      <div class="sum-body">
+        <p class="lc-meta">{% if current.generated_by == 'agent' %}<span class="ai-tag">✦ AI-generated</span>{% else %}<span class="sig tone-warn">Template</span> the AI summary could not be verified, so this is built from the facts by rules.{% endif %}
+          {{ current.created_at[:10] }}{% if current.requested_by_name %} · requested by {{ current.requested_by_name }}{% endif %}</p>
+        <h3 class="sum-headline">{{ s.headline }}</h3>
+        <p class="sum-overall">{{ s.overall }}</p>
+        {% if s.highlights %}<h3 class="sub-h">Highlights</h3>{{ refs(s.highlights, f, uid) }}{% endif %}
+        {% if s.concerns %}<h3 class="sub-h">Concerns</h3>{{ refs(s.concerns, f, uid) }}{% endif %}
+        {% if s.evidence_mix %}<p class="lc-meta">{{ s.evidence_mix }}</p>{% endif %}
+        {% for key, label in [('skills_growth', 'Skills growth'), ('learning', 'Learning curve & training'), ('development_focus', 'Focus for the next period'), ('talking_points', 'Talking points for the 1:1')] %}
+          {% if s[key] %}<h3 class="sub-h">{{ label }}</h3><ul class="sum-list">{% for t in s[key] %}<li>{{ t }}</li>{% endfor %}</ul>{% endif %}
+        {% endfor %}
+        {% if s.promotion_view %}<div class="sum-verdict"><b>Readiness (rules): {{ s.promotion_view.recommendation }}</b><p>{{ s.promotion_view.rationale }}</p></div>{% endif %}
+        {% if s.suggested_rating %}<p class="lc-meta">Suggested rating {{ s.suggested_rating }}/5, within the band's range. You decide the rating.</p>{% endif %}
+        {% if can_edit and current.review_type in ('mid_year', 'annual') %}
+        <form method="post" action="/people/{{ uid }}/summaries/{{ current.summary_id }}/use"><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button class="btn-ghost" type="submit">Start the {{ 'annual' if current.review_type == 'annual' else 'mid-year' }} review from this summary →</button></form>{% endif %}
+      </div>
+      <div><h3 class="sub-h" style="margin-top:0">Fact sheet</h3>{{ fact_sheet(f) }}</div>
+    </div>
+    {% else %}<div class="lc-empty">No {{ types[selected]|lower }} summary yet.{% if can_generate %} Choose the type and press ✦ Summarise.{% endif %}</div>{% endif %}
+  </article>
+</section>
+{%- endmacro %}
+
+{% macro career_section(uid, aspirations, applications, cv_claims, can_edit, csrf_token) -%}
+<section id="career" class="lc-section">
+  <article class="lc-card">
+    <div class="lc-card-head"><div><h2>Career aspirations & mobility</h2>
+      <p>Roles this person wants next, in any department or vertical, with readiness against each. Skill levels count in order of strength: validated, assessed, then claimed on the CV ({{ cv_claims|length }} CV claim{{ 's' if cv_claims|length != 1 }}). Promotion readiness uses assessed levels only.</p></div></div>
+    {% if aspirations %}
+    <div class="asp-grid">
+      {% for a in aspirations %}{% set x = a.analysis %}
+      <div class="asp-card">
+        <div class="asp-head"><b>{{ a.role_name or a.posting_title }}</b>
+          {% if x and x.cross_vertical %}<span class="sig tone-info">{{ x.current.tower if x.current else '' }} → {{ x.role.tower }}</span>{% elif x and x.cross_department %}<span class="sig tone-info">Other department</span>{% endif %}
+          {% if a.application %}<span class="sig tone-good">Applied · {{ a.application.status }}</span>{% endif %}</div>
+        {% if a.note %}<p class="pitch-why">“{{ a.note }}”</p>{% endif %}
+        {% if x %}
+        <div class="asp-stats"><div><span>Assessed</span><strong>{{ x.assessed_pct }}%</strong></div><div><span>With CV</span><strong>{{ x.pct }}%</strong></div>
+          <div><span>Readiness</span><strong>{{ x.promotion.level }}</strong></div><div><span>Path</span><strong>{{ x.weeks_total }} wks</strong></div></div>
+        {% if x.critical_missed %}<p class="lc-meta">Critical gaps: {{ x.critical_missed|join(', ') }}</p>{% endif %}
+        {% if can_edit %}
+        <div class="asp-actions">
+          <form method="post" action="/people/{{ uid }}/career/assess" data-busy-label="Assigning…"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="role_id" value="{{ x.role.role_id }}">
+            <button class="btn-ghost" type="submit">Assign readiness assessment</button></form>
+          <details class="lc-disclosure"><summary>Nominate for {{ x.role.role_name }}</summary>
+            <form method="post" action="/people/{{ uid }}/career/nominate" class="lc-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="role_id" value="{{ x.role.role_id }}">
+              <label>Your case for the leadership team <textarea name="note" maxlength="2000" required minlength="20"></textarea></label>
+              <div class="actions"><button class="button" type="submit">Send nomination</button></div></form></details>
+        </div>
+        {% endif %}
+        {% else %}<p class="lc-meta">This posting isn't mapped to a job profile yet, so there are no skill targets to compare.</p>{% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}<div class="lc-empty">No career aspirations recorded. Employees add them on their Career &amp; Mobility page.</div>{% endif %}
+    {% if applications %}<h3 class="sub-h">Internal applications</h3>
+    <div class="table-wrap"><table><thead><tr><th>Role</th><th>Applied</th><th>Readiness then</th><th>Status</th></tr></thead><tbody>
+      {% for ap in applications %}<tr><td>{{ ap.role_name or ap.posting_title }}</td><td>{{ ap.created_at[:10] }}</td>
+        <td>{{ ap.readiness.pct ~ '%' if ap.readiness.pct is not none else '—' }}{% if ap.readiness.promotion %} · {{ ap.readiness.promotion }}{% endif %}</td>
+        <td><span class="badge {{ 'success' if ap.status == 'shortlisted' else 'danger' if ap.status == 'declined' else 'blue' }}">{{ ap.status|title }}</span>{% if ap.decision_note %}<small>{{ ap.decision_note }}</small>{% endif %}</td></tr>{% endfor %}
+    </tbody></table></div>{% endif %}
+  </article>
+</section>
+{%- endmacro %}

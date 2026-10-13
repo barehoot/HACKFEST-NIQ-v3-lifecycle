@@ -1,0 +1,107 @@
+{% extends 'base.html' %}
+{% block title %}Job Profiles & Skills{% endblock %}
+{% block breadcrumb %}{{ current_user.role_label }} / Job Profiles{% endblock %}
+{% block content %}
+{% set editor = current_user.role in ('admin', 'leader', 'hr') %}
+<div class="page-heading"><div><p class="eyebrow">ORGANISATION · VERTICALS, JOB PROFILES, SKILLS, TRENDS</p><h1>Job profiles & required skills</h1>
+  <p>As the market moves, so do the skills each job needs. {% if editor %}Admins, HR partners and leaders change requirements directly{% else %}Propose a change and an admin, HR partner or leader approves it{% endif %}. Every change records why, and targets flow straight into TNI, status scoring, promotion readiness and question generation.</p></div>
+  {% if editor %}<div class="heading-actions">{% if current_user.role in ('admin', 'hr') %}<a class="btn-ghost" href="/org/skills">◈ Skill catalogue</a>{% endif %}<a class="button" href="/org/onboard">＋ Onboard a job profile</a></div>{% endif %}</div>
+{% if notice %}<div class="flash ok" role="status">{{ notice }}</div>{% endif %}
+{% if error %}<div class="flash err" role="alert"><b>Not saved:</b> {{ error }}</div>{% endif %}
+
+{% if data.pending %}
+<article class="lc-card" style="margin-bottom:16px"><h2>Proposals waiting for approval ({{ data.pending|length }})</h2>
+  <ul class="attention-list">{% for c in data.pending %}<li class="tone-low"><a href="/org/job-profiles/{{ c.role_id }}#changes"><span class="ico">✎</span>
+    <div><b>{{ c.role_name }} · {{ c.action|title }} “{{ c.skill }}”</b><small>{{ c.reason }} · by {{ c.proposed_by_name or c.proposed_by }} · {{ c.proposed_at[:10] }}</small></div><span>Review →</span></a></li>{% endfor %}</ul>
+</article>
+{% endif %}
+
+<section class="lc-section" id="verticals">
+  <article class="lc-card">
+    <div class="lc-card-head"><div><h2>Verticals</h2><p>The top of the organisation tree: verticals → departments → job profiles.</p></div></div>
+    <div class="vertical-grid">
+      {% for v in data.verticals %}<div class="vertical-tile"><b>{{ v.code }}</b><span>{{ v.name }}</span>
+        <small>{{ v.departments }} dept · {{ v.roles }} role{{ 's' if v.roles != 1 }} · {{ v.skills }} skill{{ 's' if v.skills != 1 }} · {{ v.people }} people</small>
+        {% if v.created_by != 'seed' %}<span class="sig tone-good">Added{% if v.created_by_name %} by {{ v.created_by_name }}{% endif %}</span>{% endif %}</div>{% endfor %}
+    </div>
+    {% if editor %}
+    <details class="lc-disclosure" style="margin-top:12px"><summary>＋ New vertical</summary>
+      <form method="post" action="/org/verticals" class="lc-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <div class="row"><label>Code <span class="hint">2-8 letters/digits</span><input name="code" maxlength="8" required placeholder="FPA" style="text-transform:uppercase"></label>
+          <label>Name <input name="name" maxlength="60" required placeholder="Financial Planning & Analysis"></label></div>
+        <label>What it covers <input name="description" maxlength="400"></label>
+        <div class="actions"><button class="button" type="submit">Create vertical</button><span class="lc-meta">Or create it as part of <a class="text-link" href="/org/onboard">onboarding a job profile</a>.</span></div></form></details>
+    {% endif %}
+  </article>
+</section>
+
+<section class="lc-section">
+  {% for tower, roles in data.towers.items() %}
+  <div class="section-heading"><div><h2>{{ tower }}</h2><p>{{ roles|length }} job profile(s)</p></div></div>
+  <div class="role-grid">{% for r in roles %}
+    <a class="role-tile" href="/org/job-profiles/{{ r.role_id }}"><b>{{ r.role_name }}</b>
+      <small>{{ r.role_grade }} · {{ r.process_group }}{% if r.department %} · {{ r.department }}{% endif %}</small>
+      <div class="sig-list"><span class="sig">{{ r.skills }} skills</span><span class="sig tone-info">{{ r.critical }} critical</span>
+        {% if r.pending %}<span class="sig tone-warn">{{ r.pending }} proposal(s)</span>{% endif %}{% if r.custom %}<span class="sig tone-good">Added in Talent 360i</span>{% endif %}</div></a>
+  {% endfor %}</div>
+  {% endfor %}
+</section>
+
+<section class="lc-grid-2 lc-section">
+  <article class="lc-card" id="trends"><h2>Market & skill trends</h2><p class="lc-sub">What is changing outside: tools, regulation, ways of working. Link a requirement change to the trend behind it.</p>
+    {% for t in data.trends %}<div class="trend"><span class="trend-dir {{ t.direction }}">{{ directions[t.direction] }}</span>
+      <div><b>{{ t.skill }}</b>{% if t.tower %} <small class="muted">· {{ t.tower }}</small>{% endif %}<p style="margin:3px 0 0;font-size:12.5px">{{ t.note }}</p>
+        <small class="muted">{{ t.added_by_name or '' }} · {{ t.created_at[:10] }}{% if t.source %} · source: {{ t.source }}{% endif %}</small></div></div>
+    {% else %}<div class="lc-empty">No trends logged yet.</div>{% endfor %}
+    <details class="lc-disclosure" style="margin-top:12px"><summary>＋ Log a trend</summary>
+      <form method="post" action="/org/trends" class="lc-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <div class="row"><label>Skill <input name="skill" maxlength="120" required placeholder="e.g. AI-assisted reconciliation"></label>
+          <label>Direction <select name="direction">{% for k, label in directions.items() %}<option value="{{ k }}">{{ label }}</option>{% endfor %}</select></label>
+          <label>Vertical <select name="tower"><option value="">All</option>{% for t in towers %}<option>{{ t }}</option>{% endfor %}</select></label></div>
+        <label>What's changing <textarea name="note" maxlength="600" required></textarea></label>
+        <label>Source <input name="source" maxlength="200" placeholder="Report, vendor roadmap, regulation…"></label>
+        <div class="actions"><button class="button" type="submit">Log trend</button></div></form></details>
+  </article>
+  <article class="lc-card" id="departments"><h2>Departments</h2><p class="lc-sub">A department's leader sees its people on their dashboards: leader scope at 20,000+ employees.</p>
+    {% if data.departments %}<div class="table-wrap"><table><thead><tr><th>Department</th><th>Leader</th><th>People</th><th>Roles</th></tr></thead><tbody>
+      {% for d in data.departments %}<tr><td><b>{{ d.name }}</b><small>{{ d.tower or 'Cross-tower' }}</small></td><td>{{ d.leader_name or '—' }}</td><td>{{ d.people }}</td><td>{{ d.roles }}</td></tr>{% endfor %}
+    </tbody></table></div>{% else %}<div class="lc-empty">No departments yet.</div>{% endif %}
+    {% if editor %}
+    <details class="lc-disclosure" style="margin-top:12px"><summary>＋ New department</summary>
+      <form method="post" action="/org/departments" class="lc-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <div class="row"><label>Name <input name="name" maxlength="80" required></label>
+          <label>Vertical <select name="tower"><option value="">Cross-vertical</option>{% for t in towers %}<option>{{ t }}</option>{% endfor %}</select></label>
+          <label>Leader <select name="leader_id"><option value="">—</option>{% for l in leaders %}<option value="{{ l.user_id }}">{{ l.full_name }}</option>{% endfor %}</select></label></div>
+        <label>Description <input name="description" maxlength="400"></label>
+        <div class="actions"><button class="button" type="submit">Create department</button></div></form></details>
+    {% endif %}
+  </article>
+</section>
+
+{% if editor %}
+<section class="lc-section"><article class="lc-card"><div class="lc-card-head"><div><h2>New job profile</h2>
+  <p>The guided onboarding places the role in a vertical and department (new or existing), lets Agent 8 pitch its required skills and shows what is left before people can be assessed.</p></div>
+  <a class="button" href="/org/onboard">＋ Onboard a job profile</a></div>
+  <details class="lc-disclosure"><summary>Quick create without the guide</summary>
+  <form method="post" action="/org/job-profiles" class="lc-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <div class="row"><label>Job title <input name="name" maxlength="120" required placeholder="e.g. Automation & Analytics Associate"></label>
+      <label>Vertical <select name="tower" required>{% for t in towers %}<option>{{ t }}</option>{% endfor %}</select></label>
+      <label>Process group <input name="process_group" maxlength="80" placeholder="e.g. Billing / Revenue / Cash"></label>
+      <label>Grade <input name="grade" maxlength="20" required placeholder="B3, B4, P3 or B3/B4"></label>
+      <label>Department <select name="dept_id"><option value="">—</option>{% for d in data.departments %}<option value="{{ d.dept_id }}">{{ d.name }}</option>{% endfor %}</select></label></div>
+    <label>Role summary <span class="hint">Used for resume matching</span><textarea name="summary" maxlength="1000" required></textarea></label>
+    <label>Key responsibilities <textarea name="responsibilities" maxlength="1500"></textarea></label>
+    <label>Skills in plain words <input name="skills_text" maxlength="800" placeholder="Python, Power Query, reconciliation, stakeholder management"></label>
+    <div class="actions"><button class="button" type="submit">Create job profile</button></div></form></details>
+</article></section>
+{% endif %}
+
+{% if data.recent %}
+<section class="lc-section"><article class="lc-card"><h2>Recent requirement changes</h2>
+  <div class="table-wrap"><table><thead><tr><th>When</th><th>Job</th><th>Change</th><th>Why</th><th>By</th><th>Status</th></tr></thead><tbody>
+  {% for c in data.recent %}<tr><td class="nowrap">{{ c.proposed_at[:10] }}</td><td><a class="text-link" href="/org/job-profiles/{{ c.role_id }}">{{ c.role_name or c.role_id }}</a></td>
+    <td>{{ c.action|title }} <b>{{ c.skill }}</b>{% if c.payload.target_level %} → L{{ c.payload.target_level }}{% endif %}</td><td><small>{{ c.reason }}</small></td>
+    <td>{{ c.proposed_by_name or c.proposed_by }}</td><td><span class="badge {{ 'success' if c.status == 'applied' else 'danger' if c.status == 'rejected' else 'warning' }}">{{ c.status|title }}</span></td></tr>{% endfor %}
+  </tbody></table></div></article></section>
+{% endif %}
+{% endblock %}

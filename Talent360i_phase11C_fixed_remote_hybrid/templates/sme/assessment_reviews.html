@@ -1,0 +1,33 @@
+{% extends 'base.html' %}
+{% block title %}A3 Assessment Reviews{% endblock %}
+{% block breadcrumb %}SME / A3 Assessment Reviews{% endblock %}
+{% block content %}
+<div class="page-heading"><div><p class="eyebrow">A3 HUMAN REVIEW</p><h1>Assessment Review Queue</h1><p>Borderline descriptive-answer proposals are routed here. The SME reviews the proposal; A3 never sets the employee level.</p></div></div>
+<div class="notice-card"><b>Governance:</b> A3 proposes rubric scoring, confidence and evidence citations. The deterministic domain layer remains responsible for proficiency calculations.</div>
+
+<div class="card table-card" style="margin-bottom:24px">
+<div class="card-label-row"><span>SUBMITTED MCQ SCORES</span></div>
+<div class="table-wrap"><table><thead><tr><th>Employee</th><th>Role</th><th>Score</th><th>Status</th></tr></thead><tbody>
+{% for cycle in scored_cycles %}
+<tr>
+  <td><b>{{ cycle.employee_name }}</b></td>
+  <td>{{ cycle.matched_role_name }}</td>
+  <td>{{ cycle.mcq_score.overall_score_pct }}%</td>
+  <td><span class="badge {{ 'success' if cycle.status == 'manager_approved' else 'danger' if cycle.status == 'manager_rejected' else 'warning' }}">{{ cycle.status|replace('_',' ')|title }}</span></td>
+</tr>
+{% else %}<tr><td colspan="4" class="empty">No assessments have been submitted yet.</td></tr>{% endfor %}
+</tbody></table></div>
+</div>
+
+<div class="card table-card">
+<div class="table-wrap"><table><thead><tr><th>ID</th><th>Employee</th><th>Skill</th><th>Score</th><th>Confidence</th><th>Status</th><th>Evidence</th><th>Decision</th></tr></thead>
+<tbody>
+{% for item in escalations %}
+<tr>
+<td class="muted">{{ item.id }}</td><td><b>{{ item.employee }}</b><small>{{ item.attempt_id }}</small></td><td>{{ item.skill }}</td><td>{{ item.score_percent }}%</td><td>{{ (item.confidence * 100)|round|int }}%</td><td><span class="badge {{ 'success' if item.status == 'SME Accepted' else 'warning' if item.status == 'Pending SME Review' else 'danger' }}">{{ item.status }}</span></td>
+<td><details><summary>View rubric evidence</summary><ul>{% for c in item.citations %}<li><b>{{ c.dimension|replace('_',' ')|title }}:</b> {{ c.evidence }}</li>{% endfor %}</ul></details></td>
+<td>{% if item.status == 'Pending SME Review' %}<form method="post" action="/sme/assessment-reviews/{{ item.id }}/decision" class="form-stack"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><textarea name="note" rows="2" placeholder="Optional SME note"></textarea><div class="decision-buttons"><button class="button success-button" name="decision" value="accept" type="submit">Accept proposal</button><button class="button secondary" name="decision" value="send_back" type="submit">Send back</button></div></form>{% else %}<span class="muted">Reviewed</span>{% endif %}</td>
+</tr>
+{% else %}<tr><td colspan="8" class="empty">No A3 descriptive proposals are waiting for SME review.</td></tr>{% endfor %}
+</tbody></table></div></div>
+{% endblock %}

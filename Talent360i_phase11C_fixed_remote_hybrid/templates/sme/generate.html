@@ -1,0 +1,57 @@
+{% extends 'base.html' %}
+{% block title %}AI Question Generation{% endblock %}
+{% block breadcrumb %}SME / AI Generation{% endblock %}
+{% block content %}
+<div class="page-heading">
+  <div><p class="eyebrow purple-text">✦ A2 QUESTION AGENT</p><h1>Generate questions for the bank</h1><p>You decide the role, how many questions and at what proficiency level. Agent 2 writes and self-checks each one; nothing reaches an employee until you approve it in the review queue.</p></div>
+  <a class="button secondary" href="/sme/bank">Open question bank</a>
+</div>
+{% if error %}<div class="flash err" role="alert">{{ error }}</div>{% endif %}
+
+{% if result %}
+<div class="card table-card" style="margin-bottom:16px">
+  <div class="card-toolbar"><div><h2>Generated {{ result['items']|length }} question(s) — awaiting your review</h2><p>{{ result.role.role_name or '' }}. Approve or reject each one; approved questions join the bank and can be reused in any assessment for this role.</p></div><a class="button" href="/sme/questions">Open review queue</a></div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Skill</th><th>Level</th><th>Question</th><th>Self-check</th><th></th></tr></thead>
+    <tbody>
+    {% for q in result['items'] %}
+    <tr><td><b>{{ q.skill }}</b></td><td>L{{ q.target_proficiency_level }}</td><td class="question-snippet">{{ q.question_text }}</td>
+      <td><span class="badge {{ 'success' if q.status == 'approved_for_sme_review' else 'danger' }}">{{ 'Passed' if q.status == 'approved_for_sme_review' else 'Failed — needs rewrite' }}</span><small>{{ ((q.ai_confidence or 0) * 100)|round|int }}% confidence</small></td>
+      <td><a class="text-link" href="/sme/questions/{{ q.question_id|urlencode }}">Review →</a></td></tr>
+    {% else %}<tr><td colspan="5" class="empty">No questions could be generated for that selection.</td></tr>{% endfor %}
+    {% for s in result.skills_skipped %}<tr><td colspan="5" class="muted">Skipped {{ s.skill }} — {{ s.reason }}</td></tr>{% endfor %}
+    </tbody>
+  </table></div>
+</div>
+{% endif %}
+
+<div class="two-col">
+  <article class="card">
+    <div class="section-heading"><div><p class="eyebrow">ASSESSMENT DESIGN</p><h2>What to generate</h2></div></div>
+    <form method="get" action="/sme/generate" class="form-stack" style="margin-bottom:12px">
+      <label>Role<select name="role" onchange="this.form.submit()">{% for r in roles %}<option value="{{ r.role_id }}" {{ 'selected' if r.role_id == selected_role }}>{{ r.tower }} · {{ r.role_name }}</option>{% endfor %}</select></label>
+      <noscript><button class="button secondary" type="submit">Load skills</button></noscript>
+    </form>
+    <form method="post" action="/sme/generate" class="form-stack" data-busy-label="Agent 2 is writing and self-checking…">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="role_id" value="{{ selected_role }}">
+      <label>Proficiency level<select name="level"><option value="">Each skill's role target level</option>{% for n, name in [(1, 'Awareness'), (2, 'Working Knowledge'), (3, 'Proficient'), (4, 'Advanced'), (5, 'Expert / Strategic')] %}<option value="{{ n }}">L{{ n }} · {{ name }}</option>{% endfor %}</select></label>
+      <label>Number of questions<select name="count">{% for n in range(1, 11) %}<option value="{{ n }}" {{ 'selected' if n == 5 }}>{{ n }}</option>{% endfor %}</select></label>
+      <fieldset class="skill-picks"><legend>Skills <small>(none ticked = the role's most critical skills first)</small></legend>
+        {% for s in role_skills %}<label class="check-row"><input type="checkbox" name="skills" value="{{ s.skill }}"> {{ s.skill }} <small>target L{{ s.target_level }}{% if s.is_critical %} · critical{% endif %}</small></label>{% endfor %}
+      </fieldset>
+      <button class="button" type="submit">Generate &amp; self-check</button>
+      <small class="muted">One question per skill. Each is grounded on the skill's descriptor for the chosen level and self-checked for relevance, difficulty, Bloom level and bias.</small>
+    </form>
+  </article>
+  <article class="card">
+    <p class="eyebrow purple-text">✦ GOVERNED PIPELINE</p><h2>From generation to an employee</h2>
+    <ol class="pipeline">
+      <li class="done"><span>1</span><div><b>You design</b><small>Role, level, number of questions, skills.</small></div></li>
+      <li class="done"><span>2</span><div><b>Agent 2 generates &amp; self-checks</b><small>Regenerates once if a check fails.</small></div></li>
+      <li class="active"><span>3</span><div><b>You approve</b><small>Review queue — approve or reject each item.</small></div></li>
+      <li><span>4</span><div><b>Question bank</b><small>Approved questions are reused across assessments for the role.</small></div></li>
+      <li><span>5</span><div><b>Assign</b><small>The selection agent proposes a set; you adjust and deploy it.</small></div></li>
+    </ol>
+  </article>
+</div>
+{% endblock %}

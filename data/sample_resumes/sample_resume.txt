@@ -1,0 +1,20 @@
+Jordan Ellis
+Accounts Payable Professional
+
+Summary
+Accounts Payable Lead with 6 years of experience owning end-to-end P2P operations,
+vendor invoice processing, and SLA governance for a shared services finance team.
+
+Experience
+- Process high volumes of vendor invoices daily, performing 3-way matching against
+  purchase orders and goods receipts in SAP.
+- Resolve payment exceptions and blocked invoices, coordinating with procurement
+  and vendors to clear discrepancies before SLA breach.
+- Own SLA and governance metrics reporting for the P2P team, tracking backlog,
+  aging, and first-time-right quality.
+- Lead a small team, redistributing workload during peak periods to avoid
+  bottlenecks and missed deadlines.
+
+Skills
+SAP, 3-way matching, vendor management, SLA governance, Excel, invoice exception
+handling, team leadership.

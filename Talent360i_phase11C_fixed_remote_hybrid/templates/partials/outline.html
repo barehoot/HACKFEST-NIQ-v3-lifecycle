@@ -1,0 +1,49 @@
+{# Agent 5 training-session outline created by a manager decision (services/progression.py).
+   audience: 'employee' (their own plan) or 'manager' (a report's plan). #}
+{% macro outline_card(o, audience='employee', open=False) %}
+{% set gap = o.mode == 'gap' %}
+<details class="card outline-card" {{ 'open' if open }}>
+  <summary>
+    <span class="badge {{ 'warning' if gap else 'success' }}">{{ 'Skill-gap training' if gap else 'Skill-up training' }}</span>
+    <b>{{ o.role_name or 'Assessment' }}</b>
+    <small>{% if audience == 'manager' %}{{ o.employee_name or o.user_id }} · {% endif %}from {{ o.created_by_name or 'the manager' }}'s decision on {{ o.decided_at or o.created_at[:10] }}
+      {% if not o.pending %} · {{ o.done }} of {{ o.booked }} session(s) done{% endif %}</small>
+    {% if o.complete %}<span class="badge success">✓ Complete</span>{% elif o.pending %}<span class="badge blue">Being prepared</span>{% endif %}
+  </summary>
+  {% if o.pending %}
+    <p class="muted-copy">Agent 5 is preparing the session outline. It will appear here and on the calendar shortly.</p>
+  {% else %}
+    <p class="outline-summary">{{ o.outline.summary }}</p>
+    <div class="outline-meta">
+      <span>{{ o.sessions|length }} session(s) · {{ (o.outline.total_minutes / 60)|round(1) }} h</span>
+      {% for s in o.outline.skills %}<span class="badge blue">{{ s.skill }} · {{ 'L' ~ s.from_level if s.from_level is not none else '?' }}→L{{ s.to_level }}</span>{% endfor %}
+      <span class="badge purple" title="{{ 'A standard template was used because the AI outline could not be verified.' if o.template else 'Drafted by Agent 5 and checked against the level descriptors and the course catalogue.' }}">{{ 'Template outline' if o.template else 'A5 outline · verified' }}</span>
+    </div>
+    <ol class="outline-sessions">
+      {% for s in o.sessions %}
+      <li class="{{ 'done' if s.event and s.event.status == 'completed' }}">
+        <div class="outline-head">
+          <b>{{ s.session_number }}. {{ s.title }}</b>
+          <small>{{ s.skill }}{% if s.is_critical %} · critical{% endif %} · {{ s.format }} · {{ s.duration_minutes }} min
+            {% if s.course_id %} · <a class="text-link" href="/learning/catalog/{{ s.course_id }}">{{ s.course_id }}</a>{% endif %}</small>
+          {% if s.event %}<span class="badge {{ 'success' if s.event.status == 'completed' else 'danger' if s.event.status == 'cancelled' else 'blue' }}">{{ '✓ Done ' ~ s.event.event_date if s.event.status == 'completed' else 'Cancelled' if s.event.status == 'cancelled' else s.event.event_date ~ (' · ' ~ s.event.start_time if s.event.start_time else '') }}</span>
+            {% if audience == 'manager' and s.event.status == 'scheduled' %}<form method="post" action="/manager/training/{{ s.event.event_id }}/delivered" class="enrol-inline"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="link-button ok" type="submit">Mark delivered</button></form>{% endif %}
+          {% endif %}
+        </div>
+        <div class="outline-body">
+          <div><small>OBJECTIVES</small><ul>{% for x in s.objectives %}<li>{{ x }}</li>{% endfor %}</ul></div>
+          <div><small>ACTIVITIES</small><ul>{% for x in s.activities %}<li>{{ x }}</li>{% endfor %}</ul></div>
+          {% if s.practice_task or s.success_check %}
+          <div>{% if s.practice_task %}<small>PRACTICE TASK</small><p>{{ s.practice_task }}</p>{% endif %}
+               {% if s.success_check %}<small>HOW IT'S CHECKED</small><p>{{ s.success_check }}</p>{% endif %}</div>
+          {% endif %}
+        </div>
+      </li>
+      {% endfor %}
+    </ol>
+    {% if gap %}<p class="muted-copy outline-foot">When every session is marked done, a re-assessment on these skills is assigned automatically from SME-approved questions.</p>
+    {% elif audience == 'employee' %}<p class="muted-copy outline-foot">These sessions build on the levels your manager certified, towards the next level.</p>{% endif %}
+    {% if audience == 'manager' %}<p class="muted-copy outline-foot">Mark each session delivered once it has happened (a session delivered early is recorded on today's date).</p>{% endif %}
+  {% endif %}
+</details>
+{% endmacro %}

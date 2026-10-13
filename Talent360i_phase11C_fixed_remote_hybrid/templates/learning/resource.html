@@ -1,0 +1,17 @@
+{% extends 'base.html' %}
+{% block title %}{{ resource_type }}{% endblock %}
+{% block breadcrumb %}{{ resource_type }}{% endblock %}
+{% block content %}
+<div class="page-heading"><div><p class="eyebrow">CURATED RESOURCE</p><h1>{{ resource.title }}</h1><p>{{ resource_type }} reference used by the Talent 360i development plan.</p></div></div>
+<div class="card resource-detail-card">
+  <span class="badge purple">Synthetic development resource</span>
+  <h2>{{ resource.title }}</h2>
+  {% if resource.description %}<p>{{ resource.description }}</p>{% endif %}
+  {% if resource.skill %}<div class="resource-meta"><span><b>Skill</b>{{ resource.skill }}</span><span><b>Framework</b>{{ resource.framework }}</span><span><b>Type</b>{{ resource.type }}</span><span><b>Duration</b>{{ resource.duration }}</span></div>{% endif %}
+  {% if resource.descriptor_clause %}<div class="descriptor-box"><small>DESCRIPTOR CLAUSE</small><span>{{ resource.descriptor_clause }}</span></div>{% endif %}
+  {% if resource.sop_reference %}<p class="resource-sop"><b>SOP reference:</b> {{ resource.sop_reference }}</p>{% endif %}
+  <div class="resource-note"><b>Production boundary:</b> this screen is only a local development placeholder. Production will replace the synthetic route with the approved Workday/learning-system or internal SOP deep link; no third-party integration is introduced here.</div>
+  {% set back = {'employee': ('/employee/learning', 'Back to My Plan'), 'manager': ('/manager/learning', 'Back to Learning & TNI'), 'leader': ('/leader/reports', 'Back to Organisation Report')}.get(current_user.role, (landing_path, 'Back to Dashboard')) %}
+  <a class="button secondary" href="{{ back[0] }}">{{ back[1] }}</a>
+</div>
+{% endblock %}

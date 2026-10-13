@@ -1,0 +1,71 @@
+{% extends 'base.html' %}
+{% block title %}AI Assessment{% endblock %}
+{% block breadcrumb %}AI Assessment{% endblock %}
+{% block content %}
+<section class="crextio-hero">
+  <div>
+    <p class="eyebrow">BACKEND CONNECTED</p>
+    <h1>AI Assessment Generator</h1>
+    <p>Upload a resume and send it through the Talent 360i backend pipeline.</p>
+    <div class="hero-tags"><span>POST /api/generate</span><span>{{ api_mode|upper }}</span></div>
+  </div>
+</section>
+
+<section class="neo-card" style="max-width:900px;margin-top:24px">
+  <div class="card-label-row"><span>1 · RESUME</span><span class="status-dot">● API READY</span></div>
+  {% if error %}<div class="alert alert-danger" style="margin:16px 0">{{ error }}</div>{% endif %}
+  <form method="post" enctype="multipart/form-data" action="/employee/ai-assessment/generate">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label for="resume"><strong>Resume file</strong></label>
+    <input id="resume" name="resume" type="file" accept=".pdf,.docx,.txt" required style="display:block;margin:10px 0 18px">
+    <label for="max_items"><strong>Maximum questions</strong></label>
+    <input id="max_items" name="max_items" type="number" min="1" max="20" value="5" style="display:block;margin:10px 0 18px;padding:10px">
+    <button class="dark-button" type="submit">Generate assessment <span>↗</span></button>
+  </form>
+</section>
+
+{% if result %}
+<section class="dashboard-bento" style="margin-top:24px">
+  <article class="neo-card">
+    <div class="card-label-row"><span>BACKEND RESPONSE</span><span>{{ result.status }}</span></div>
+    {% if result.match %}
+    <h2>{{ result.match.role_name }}</h2>
+    <p>{{ result.match.role_id }} · {{ result.match.role_grade }} · {{ result.match.framework }}</p>
+    <p><strong>{{ result.match.skill_count }}</strong> skills · <strong>{{ result.match.target_question_count }}</strong> target questions</p>
+    {% endif %}
+    {% if result.message %}<p>{{ result.message }}</p>{% endif %}
+  </article>
+
+  {% if result["items"] %}
+  <article class="neo-card">
+    <div class="card-label-row"><span>GENERATED QUESTIONS</span><span>{{ result["items"]|length }} items</span></div>
+    {% for item in result["items"] %}
+    <div style="padding:14px 0;border-bottom:1px solid #ddd">
+      <strong>{{ loop.index }}. {{ item.text }}</strong>
+      {% if item.skill %}<small style="display:block">{{ item.skill }} · {{ item.level }} · {{ item.question_type|default('question') }}</small>{% endif %}
+      {% if item.options %}
+      <ol type="A">{% for option in item.options %}<li>{{ option }}</li>{% endfor %}</ol>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </article>
+  {% endif %}
+
+  {% if generated_assessment %}
+  <article class="neo-card" style="grid-column:1/-1;border:2px solid #12161C">
+    <div class="card-label-row"><span>ASSESSMENT READY</span><span>{{ generated_assessment.question_set|length }} QUESTIONS</span></div>
+    <h2>{{ generated_assessment.name }}</h2>
+    <p>{{ generated_assessment.role }} · {{ generated_assessment.framework }} · {{ generated_assessment.duration }} minutes</p>
+    <a class="dark-button" href="/employee/assessment/{{ generated_assessment.id }}">Take this assessment →</a>
+  </article>
+  {% endif %}
+
+  {% if result.skills_skipped %}
+  <article class="neo-card">
+    <div class="card-label-row"><span>SKILLS SKIPPED</span></div>
+    {% for item in result.skills_skipped %}<p>{{ item }}</p>{% endfor %}
+  </article>
+  {% endif %}
+</section>
+{% endif %}
+{% endblock %}

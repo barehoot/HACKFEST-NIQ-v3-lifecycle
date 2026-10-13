@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Talent 360i — SkillPath AI">
+  <link rel="icon" type="image/svg+xml" href="{{ url_for('static', path='img/favicon.svg') }}">
+  <title>{% block title %}Talent 360i{% endblock %} | SkillPath AI</title>
+  <link rel="stylesheet" href="{{ url_for('static', path='css/app.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', path='css/components.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', path='css/tni.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', path='css/lifecycle.css') }}">
+</head>
+<body class="talent-app finance-theme">
+<div class="finance-shell">
+  <aside class="finance-sidebar" id="sidebar" aria-label="Primary navigation">
+    <div class="finance-brand-wrap">
+      <a class="finance-brand" href="{{ landing_path }}" aria-label="Talent 360i home">
+        <span class="finance-brand-mark">T</span>
+        <span><strong>Talent <b>360i</b></strong><small>SkillPath AI</small></span>
+      </a>
+      <button class="sidebar-close" type="button" aria-label="Close navigation">×</button>
+    </div>
+
+    <div class="finance-role-card">
+      <span class="finance-role-dot"></span>
+      <div><small>WORKSPACE</small><strong>{{ current_user.role_label }}</strong></div>
+    </div>
+
+    <nav class="finance-nav" aria-label="Main navigation">
+      {% if current_user.role == 'employee' %}
+        <p class="finance-nav-label">MY TALENT</p>
+        <a href="/employee/dashboard" class="{{ 'active' if request.url.path == '/employee/dashboard' else '' }}"><span>⌂</span>Dashboard</a>
+        <a href="/employee/performance" class="{{ 'active' if request.url.path == '/employee/performance' else '' }}"><span>◐</span>My Performance</a>
+        <a href="/employee/skills" class="{{ 'active' if request.url.path == '/employee/skills' else '' }}"><span>◈</span>My Skills &amp; TNI</a>
+        <a href="/employee/career" class="{{ 'active' if request.url.path.startswith(('/employee/career', '/jobs/')) else '' }}"><span>⇄</span>Career &amp; Mobility</a>
+        <a href="/employee/assessments" class="{{ 'active' if request.url.path.startswith(('/employee/assessment', '/employee/evidence')) else '' }}"><span>▣</span>Assessments</a>
+        <a href="/employee/calendar" class="{{ 'active' if request.url.path == '/employee/calendar' else '' }}"><span>◷</span>My Calendar</a>
+        <a href="/employee/learning" class="{{ 'active' if request.url.path == '/employee/learning' or request.url.path.startswith(('/learning/', '/knowledge/')) else '' }}"><span>↗</span>My Training Plan</a>
+      {% elif current_user.role == 'sme' %}
+        <p class="finance-nav-label">GOVERNANCE</p>
+        <a href="/sme/dashboard" class="{{ 'active' if request.url.path == '/sme/dashboard' else '' }}"><span>⌂</span>Dashboard</a>
+        <a href="/sme/assign" class="{{ 'active' if request.url.path.startswith(('/sme/assign', '/sme/assessments')) else '' }}"><span>✚</span>Assign Assessments</a>
+        <a href="/sme/generate" class="{{ 'active' if request.url.path == '/sme/generate' else '' }}"><span>✦</span>AI Generation</a>
+        <a href="/sme/questions" class="{{ 'active' if request.url.path.startswith('/sme/questions') else '' }}"><span>◷</span>Review Queue</a>
+        <a href="/sme/bank" class="{{ 'active' if request.url.path == '/sme/bank' else '' }}"><span>▤</span>Question Bank</a>
+        <a href="/sme/coding" class="{{ 'active' if request.url.path.startswith('/sme/coding') else '' }}"><span>⌨</span>Coding Challenges</a>
+        <a href="/scheduler/schedule" class="{{ 'active' if request.url.path.startswith('/scheduler') else '' }}"><span>◷</span>Schedule &amp; Calendar</a>
+        <a href="/sme/assessment-reviews" class="{{ 'active' if request.url.path.startswith('/sme/assessment-reviews') else '' }}"><span>◎</span>Assessment Reviews</a>
+        <a href="/sme/approved" class="{{ 'active' if request.url.path == '/sme/approved' else '' }}"><span>✓</span>Approved</a>
+      {% elif current_user.role == 'scheduler' %}
+        <p class="finance-nav-label">ASSESSMENT OPS</p>
+        <a href="/scheduler/dashboard" class="{{ 'active' if request.url.path == '/scheduler/dashboard' else '' }}"><span>⌂</span>Dashboard</a>
+        <a href="/scheduler/blueprint" class="{{ 'active' if request.url.path == '/scheduler/blueprint' else '' }}"><span>◇</span>Blueprint</a>
+        <a href="/scheduler/schedule" class="{{ 'active' if request.url.path == '/scheduler/schedule' else '' }}"><span>◷</span>Schedule &amp; Calendar</a>
+        <a href="/scheduler/assignments" class="{{ 'active' if request.url.path == '/scheduler/assignments' else '' }}"><span>▦</span>Assignments</a>
+      {% elif current_user.role == 'manager' %}
+        <p class="finance-nav-label">TEAM ANALYTICS</p>
+        <a href="/manager/dashboard" class="{{ 'active' if request.url.path == '/manager/dashboard' else '' }}"><span>⌂</span>Dashboard</a>
+        <a href="/people" class="{{ 'active' if request.url.path.startswith('/people') else '' }}"><span>◐</span>People &amp; Performance</a>
+        <a href="/manager/team-skills" class="{{ 'active' if request.url.path == '/manager/team-skills' else '' }}"><span>◈</span>Team Skills</a>
+        <a href="/manager/skill-matrix" class="{{ 'active' if request.url.path == '/manager/skill-matrix' else '' }}"><span>▦</span>Skill Matrix</a>
+        <a href="/manager/assessments" class="{{ 'active' if request.url.path == '/manager/assessments' else '' }}"><span>▣</span>Assessments</a>
+        <a href="/manager/skill-gaps" class="{{ 'active' if request.url.path == '/manager/skill-gaps' else '' }}"><span>△</span>Skill Gaps</a>
+        <a href="/manager/learning" class="{{ 'active' if request.url.path == '/manager/learning' or request.url.path.startswith(('/learning/', '/knowledge/')) else '' }}"><span>↗</span>Learning &amp; TNI</a>
+        <a href="/manager/training" class="{{ 'active' if request.url.path == '/manager/training' else '' }}"><span>✚</span>Assign Training</a>
+        <a href="/manager/validations" class="{{ 'active' if request.url.path.startswith('/manager/validations') else '' }}"><span>✓</span>Validation Queue</a>
+        <a href="/manager/promotions" class="{{ 'active' if request.url.path.startswith('/manager/promotions') else '' }}"><span>▲</span>Promotion Readiness</a>
+        <a href="/talent" class="{{ 'active' if request.url.path.startswith(('/talent', '/jobs/')) else '' }}"><span>⇄</span>Talent Pool</a>
+        <a href="/manager/reports" class="{{ 'active' if request.url.path == '/manager/reports' else '' }}"><span>▤</span>Reports</a>
+        <p class="finance-nav-label">ORGANISATION</p>
+        <a href="/org/job-profiles" class="{{ 'active' if request.url.path.startswith('/org/job-profiles') else '' }}"><span>◫</span>Job Profiles &amp; Skills</a>
+      {% elif current_user.role == 'leader' %}
+        <p class="finance-nav-label">EXECUTIVE INSIGHTS</p>
+        <a href="/leader/dashboard" class="{{ 'active' if request.url.path == '/leader/dashboard' else '' }}"><span>⌂</span>Overview</a>
+        <a href="/leader/performance" class="{{ 'active' if request.url.path == '/leader/performance' else '' }}"><span>◐</span>Performance</a>
+        <a href="/people" class="{{ 'active' if request.url.path.startswith('/people') else '' }}"><span>♙</span>People</a>
+        <a href="/leader/probation" class="{{ 'active' if request.url.path == '/leader/probation' else '' }}"><span>P</span>Probation</a>
+        <a href="/leader/reports" class="{{ 'active' if request.url.path == '/leader/reports' or request.url.path.startswith('/learning/') else '' }}"><span>▤</span>Organisation Report</a>
+        <a href="/leader/distribution?framework=finops" class="{{ 'active' if request.url.path == '/leader/distribution' else '' }}"><span>F</span>Skill Distribution</a>
+        <a href="/leader/critical-skills?framework=finops" class="{{ 'active' if request.url.path == '/leader/critical-skills' else '' }}"><span>△</span>Critical Coverage</a>
+        <a href="/leader/movement?framework=finops" class="{{ 'active' if request.url.path == '/leader/movement' else '' }}"><span>↗</span>Movement Over Time</a>
+        <a href="/leader/item-analysis" class="{{ 'active' if request.url.path == '/leader/item-analysis' else '' }}"><span>▦</span>Item Analysis</a>
+        <a href="/leader/calibration" class="{{ 'active' if request.url.path.startswith('/leader/calibration') else '' }}"><span>◉</span>Manager Calibration</a>
+        <a href="/leader/promotions" class="{{ 'active' if request.url.path.startswith('/leader/promotions') else '' }}"><span>▲</span>Promotions</a>
+        <a href="/talent" class="{{ 'active' if request.url.path.startswith(('/talent', '/jobs/')) else '' }}"><span>⇄</span>Talent Pool</a>
+        <p class="finance-nav-label">ORGANISATION</p>
+        <a href="/org/job-profiles" class="{{ 'active' if request.url.path.startswith('/org/job-profiles') else '' }}"><span>◫</span>Job Profiles &amp; Skills</a>
+        <a href="/org/onboard" class="{{ 'active' if request.url.path.startswith('/org/onboard') else '' }}"><span>✚</span>Onboard a Job Profile</a>
+      {% elif current_user.role == 'hr' %}
+        <p class="finance-nav-label">PEOPLE OPERATIONS</p>
+        <a href="/hr/dashboard" class="{{ 'active' if request.url.path == '/hr/dashboard' else '' }}"><span>⌂</span>Dashboard</a>
+        <a href="/people" class="{{ 'active' if request.url.path.startswith('/people') else '' }}"><span>♙</span>People by Manager</a>
+        <a href="/leader/probation" class="{{ 'active' if request.url.path == '/leader/probation' else '' }}"><span>P</span>Probation Tracker</a>
+        <a href="/org/people" class="{{ 'active' if request.url.path == '/org/people' else '' }}"><span>⌗</span>HR Attributes</a>
+        <a href="/talent" class="{{ 'active' if request.url.path.startswith(('/talent', '/jobs/')) else '' }}"><span>⇄</span>Talent Pool</a>
+        <a href="/org/jobs" class="{{ 'active' if request.url.path.startswith('/org/jobs') else '' }}"><span>▣</span>Internal Jobs</a>
+        <p class="finance-nav-label">ORGANISATION DESIGN</p>
+        <a href="/org/onboard" class="{{ 'active' if request.url.path.startswith('/org/onboard') else '' }}"><span>✚</span>Onboard a Job Profile</a>
+        <a href="/org/job-profiles" class="{{ 'active' if request.url.path.startswith('/org/job-profiles') else '' }}"><span>◫</span>Job Profiles &amp; Verticals</a>
+        <a href="/org/skills" class="{{ 'active' if request.url.path.startswith('/org/skills') else '' }}"><span>◈</span>Skill Catalogue</a>
+      {% elif current_user.role == 'admin' %}
+        <p class="finance-nav-label">GOVERNANCE</p>
+        <a href="/admin/dashboard" class="{{ 'active' if request.url.path == '/admin/dashboard' else '' }}"><span>⌂</span>Dashboard</a>
+        <a href="/admin/users" class="{{ 'active' if request.url.path == '/admin/users' else '' }}"><span>♙</span>Users</a>
+        <a href="/people" class="{{ 'active' if request.url.path.startswith('/people') else '' }}"><span>◐</span>People &amp; Performance</a>
+        <a href="/org/job-profiles" class="{{ 'active' if request.url.path.startswith('/org/job-profiles') else '' }}"><span>◫</span>Job Profiles &amp; Skills</a>
+        <a href="/org/onboard" class="{{ 'active' if request.url.path.startswith('/org/onboard') else '' }}"><span>✚</span>Onboard a Job Profile</a>
+        <a href="/org/people" class="{{ 'active' if request.url.path == '/org/people' else '' }}"><span>⌗</span>HR Attributes</a>
+        <a href="/hr/dashboard" class="{{ 'active' if request.url.path == '/hr/dashboard' else '' }}"><span>♡</span>HR Workspace</a>
+        <a href="/talent" class="{{ 'active' if request.url.path.startswith(('/talent', '/jobs/')) else '' }}"><span>⇄</span>Talent Pool</a>
+        <a href="/org/jobs" class="{{ 'active' if request.url.path.startswith('/org/jobs') else '' }}"><span>▣</span>Internal Jobs</a>
+        <a href="/admin/roles" class="{{ 'active' if request.url.path == '/admin/roles' else '' }}"><span>◫</span>Roles &amp; Access</a>
+        <a href="/org/skills" class="{{ 'active' if request.url.path.startswith('/org/skills') else '' }}"><span>◈</span>Skill Catalogue</a>
+        <a href="/admin/assessments" class="{{ 'active' if request.url.path == '/admin/assessments' else '' }}"><span>▣</span>Assessments</a>
+        <a href="/admin/questions" class="{{ 'active' if request.url.path == '/admin/questions' or request.url.path.startswith('/sme/questions') else '' }}"><span>▤</span>Questions</a>
+        <a href="/admin/reports" class="{{ 'active' if request.url.path == '/admin/reports' else '' }}"><span>▥</span>Reports</a>
+        <a href="/admin/settings" class="{{ 'active' if request.url.path == '/admin/settings' else '' }}"><span>⚙</span>Settings</a>
+        <a href="/admin/audit" class="{{ 'active' if request.url.path == '/admin/audit' else '' }}"><span>⌁</span>Audit & Runs</a>
+        <a href="/admin/budget" class="{{ 'active' if request.url.path == '/admin/budget' else '' }}"><span>◷</span>Token Budget</a>
+      {% endif %}
+    </nav>
+
+    <div class="finance-sidebar-bottom">
+      <div class="finance-user">
+        <span class="finance-avatar">{{ current_user.initials }}</span>
+        <div><strong>{{ current_user.name }}</strong><small>{{ current_user.job_title }}</small></div>
+        <form method="post" action="/logout" class="logout-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button type="submit" title="Log out" class="logout-button">↗</button></form>
+      </div>
+    </div>
+  </aside>
+  <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+  <section class="finance-main">
+    <header class="finance-topbar">
+      <div class="finance-top-left">
+        <button class="mobile-menu" type="button" aria-label="Open navigation" aria-controls="sidebar" aria-expanded="false">☰</button>
+        <div class="finance-breadcrumb"><span>Talent 360i</span><i>/</i><strong>{% block breadcrumb %}Dashboard{% endblock %}</strong></div>
+      </div>
+      <div class="finance-top-actions">
+        <span class="framework-pill">{{ current_user.role_label }}</span>
+        {% if current_user.role in ('manager', 'leader', 'admin', 'hr') %}
+        <form class="top-search" action="/people" method="get" role="search"><label class="visually-hidden" for="top-q">Search people</label>
+          <input id="top-q" type="search" name="q" placeholder="⌕ Search people" maxlength="80"></form>
+        {% endif %}
+        <a class="top-icon top-bell" href="/notifications" aria-label="Notifications{{ ': ' ~ unread_notifications ~ ' unread' if unread_notifications }}" title="Notifications"><svg class="bell-ico" viewBox="0 0 24 24" width="17" height="17" aria-hidden="true" focusable="false"><path d="M6 9a6 6 0 1 1 12 0c0 4.2 1.4 6.3 2.3 7.3.3.3.1.7-.3.7H4c-.4 0-.6-.4-.3-.7C4.6 15.3 6 13.2 6 9Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M10 20a2.2 2.2 0 0 0 4 0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>{% if unread_notifications %}<span class="dot">{{ unread_notifications if unread_notifications < 100 else '99+' }}</span>{% endif %}</a>
+        <span class="top-separator"></span>
+        <span class="finance-avatar small">{{ current_user.initials }}</span>
+      </div>
+    </header>
+
+    {# AI-use notice: only on pages that show AI-generated content; user can dismiss it for the session. #}
+    {% set ai_pages = ['/employee/dashboard', '/employee/assessment/', '/employee/evidence/', '/employee/learning',
+                       '/sme/generate', '/sme/questions', '/sme/assessment-reviews',
+                       '/manager/validations', '/manager/learning', '/manager/training', '/learning/', '/leader/calibration/',
+                       '/people/', '/org/onboard/', '/org/skills', '/org/job-profiles/', '/employee/career', '/talent'] %}
+    <main class="finance-page">
+      {% for p in ai_pages if request.url.path.startswith(p) %}{% include "partials/ai_notice.html" %}{% endfor %}
+      {% block content %}{% endblock %}
+    </main>
+  </section>
+</div>
+<script src="{{ url_for('static', path='js/app.js') }}"></script>
+<script src="{{ url_for('static', path='js/tni.js') }}"></script>
+<script src="{{ url_for('static', path='js/lifecycle.js') }}"></script>
+{% block page_scripts %}{% endblock %}
+</body>
+</html>

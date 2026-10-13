@@ -1,0 +1,36 @@
+# Direct runtime dependencies for BOTH processes (pipeline API + portal).
+# Every version is pinned (secure-coding guideline A.3) and was verified on
+# Python 3.12 with the full generate -> SME -> MCQ -> evidence -> manager
+# workflow. requirements.txt is the full lock generated from this file:
+#
+#   uv pip compile requirements.in --universal --python-version 3.12 -o requirements.txt
+#
+# Python 3.12 required (numpy 2.5 needs >= 3.12); tested on 3.12.
+
+# Data + retrieval
+pandas==3.0.6
+openpyxl==3.1.5
+numpy==2.5.3
+chromadb==1.5.9          # embedded PersistentClient only -- see SECURITY.md (risk acceptance)
+onnxruntime==1.30.0
+
+# LLM providers (only agents/llm_client.py imports these)
+langchain-groq==1.1.3
+langchain-core==1.6.4
+groq==0.37.1
+azure-ai-inference==1.0.0b9
+azure-core==1.41.0
+
+# Resume parsing
+pypdf==6.19.0
+python-docx==1.2.0
+
+# Web (API + portal)
+fastapi==0.141.1
+starlette==1.6.0
+uvicorn[standard]==0.53.0
+python-multipart==0.0.32
+jinja2==3.1.6
+itsdangerous==2.2.0
+bcrypt==4.3.0
+python-dotenv==1.2.3

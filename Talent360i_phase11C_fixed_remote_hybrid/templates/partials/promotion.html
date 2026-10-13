@@ -1,0 +1,33 @@
+{# Promotion-readiness building blocks shared by the manager and leader pages (services/progression.py). #}
+{% macro meter(pct) %}<span class="inline-meter" role="img" aria-label="{{ pct }}%"><i style="width:{{ pct }}%"></i></span>{% endmacro %}
+
+{% macro band_badge(band, pct) %}{% if band %}<span class="badge {{ 'success' if band == 'Ready' else 'warning' if band == 'Developing' else 'danger' }}">{{ band }}{% if pct is not none %} · {{ pct }}%{% endif %}</span>{% else %}<span class="muted">Top of ladder</span>{% endif %}{% endmacro %}
+
+{% macro readiness_table(rows, next_role) %}
+<div class="table-wrap"><table>
+  <thead><tr><th>Skill for {{ next_role.role_name }}</th><th>Target</th><th>Current level</th><th>Evidence</th><th>Status</th></tr></thead>
+  <tbody>{% for r in rows %}
+    <tr><td><b>{{ r.skill }}</b>{% if r.is_critical %}<small>Critical skill</small>{% endif %}</td><td>L{{ r.target }}</td>
+      <td>{{ 'L' ~ r.level if r.level is not none else '—' }}</td>
+      <td>{% if r.validated %}<span class="badge success">✓ Validated</span>{% elif r.level is not none %}<span class="muted">TNI baseline</span>{% else %}<span class="muted">Not assessed</span>{% endif %}</td>
+      <td>{% if r.met %}<span class="badge success">✓ At target</span>{% elif r.level is none %}<span class="badge">Unknown</span>{% else %}<span class="badge warning">{{ r.gap }} level(s) short</span>{% endif %}</td></tr>
+  {% else %}<tr><td colspan="5" class="empty">No skills mapped to this role.</td></tr>{% endfor %}</tbody>
+</table></div>
+{% endmacro %}
+
+{% macro history_table(history) %}
+<div class="table-wrap"><table>
+  <thead><tr><th>Date</th><th>Assessment</th><th>MCQ</th><th>Simulation</th><th>AI-use</th><th>Manager decision</th></tr></thead>
+  <tbody>{% for h in history %}
+    <tr><td>{{ h.date }}</td><td><b>{{ h.role_name or '—' }}</b><small>{{ h.source }}</small></td>
+      <td>{{ h.mcq_pct ~ '%' if h.mcq_pct is not none else '—' }}</td><td>{{ h.evidence_pct ~ '%' if h.evidence_pct is not none else '—' }}</td>
+      <td>{% if h.integrity_risk in ('medium', 'high') %}<span class="badge {{ 'danger' if h.integrity_risk == 'high' else 'warning' }}">⚠ {{ h.integrity_risk|title }}</span>{% elif h.integrity_risk %}<span class="muted">Low</span>{% else %}—{% endif %}</td>
+      <td>{% if h.decision %}<span class="badge {{ 'success' if h.decision == 'approved' else 'danger' if h.decision == 'rejected' else 'warning' }}">{{ h.decision_label }}</span>{% else %}<span class="muted">{{ h.status|replace('_', ' ')|capitalize }}</span>{% endif %}</td></tr>
+  {% else %}<tr><td colspan="6" class="empty">No assessments yet.</td></tr>{% endfor %}</tbody>
+</table></div>
+{% endmacro %}
+
+{% macro certified_list(certified) %}
+{% if certified %}<ul class="cert-list">{% for c in certified %}<li><b>{{ c.skill }}</b> <span class="badge success">L{{ c.level }}</span><small>{{ c.date }}{% if c.by %} · {{ c.by }}{% endif %}</small></li>{% endfor %}</ul>
+{% else %}<p class="muted-copy">No levels certified yet.</p>{% endif %}
+{% endmacro %}

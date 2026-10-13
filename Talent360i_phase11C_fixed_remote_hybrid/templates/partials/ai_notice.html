@@ -1,0 +1,15 @@
+<div class="ai-disclosure" id="aiNotice" role="note" style="display:flex;align-items:center;gap:12px;margin:0 0 16px;padding:10px 14px;font-size:14px;background:#eef4ff;color:#1e3a8a;border:1px solid #c7d7fe;border-radius:8px;">
+  <span style="flex:1;"><strong>AI notice:</strong> Questions, evidence reviews, development plans and skill suggestions on this page are generated with AI.
+  They can contain mistakes and are always reviewed by a person (an SME, manager, leader or HR partner) before they affect anyone.</span>
+  <button type="button" id="aiNoticeClose" aria-label="Dismiss AI notice" title="Dismiss" style="border:0;background:transparent;color:inherit;font-size:20px;line-height:1;cursor:pointer;padding:0 4px;">×</button>
+</div>
+<script>
+  (function () {
+    var box = document.getElementById('aiNotice');
+    try { if (sessionStorage.getItem('aiNoticeDismissed') === '1') { box.style.display = 'none'; } } catch (e) {}
+    document.getElementById('aiNoticeClose').addEventListener('click', function () {
+      box.style.display = 'none';
+      try { sessionStorage.setItem('aiNoticeDismissed', '1'); } catch (e) {}
+    });
+  })();
+</script>

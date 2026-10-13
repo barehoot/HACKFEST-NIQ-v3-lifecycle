@@ -1,0 +1,25 @@
+{% extends 'base.html' %}
+{% block title %}{{ assessment.name }}{% endblock %}
+{% block breadcrumb %}Employee / Assessments / {{ assessment.id }}{% endblock %}
+{% block content %}
+<div class="assessment-header"><div><p class="eyebrow">ASSESSMENT IN PROGRESS</p><h1>{{ assessment.name }}</h1><p>{{ assessment.role }} <span>•</span> {{ assessment.question_set|length }} questions <span>•</span> {{ assessment.duration }} minutes <span>•</span> MCQ · Scenario · Descriptive</p></div><div class="timer"><small>TIME REMAINING</small><b id="timer" data-seconds="{{ assessment.duration * 60 }}">{{ assessment.duration }}:00</b></div></div>
+<div class="notice-card assessment-runtime-note"><b>How this assessment works:</b> MCQ and scenario items are scored deterministically. Descriptive answers are proposed by A3 against a rubric; borderline proposals are routed to an SME. A3 never sets your proficiency level.</div>
+<div class="assessment-layout" id="assessment-app" data-total="{{ assessment.question_set|length }}">
+<aside class="question-nav"><p>QUESTION PROGRESS</p><div class="question-count"><b id="answered-count">0</b> / {{ assessment.question_set|length }} answered</div><div class="number-grid">{% for question in assessment.question_set %}<button type="button" class="question-number {{ 'active' if loop.first else '' }}" data-question="{{ loop.index0 }}">{{ loop.index }}</button>{% endfor %}</div><div class="nav-key"><span><i class="key current"></i> Current</span><span><i class="key complete"></i> Answered</span></div></aside>
+<form action="/employee/assessment/{{ assessment.id }}/submit" method="post" id="assessment-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="answers" id="answers-field"><article class="card question-card">
+{% for question in assessment.question_set %}
+<div class="question-panel {{ 'visible' if loop.first else '' }}" data-index="{{ loop.index0 }}" data-type="{{ question.question_type }}">
+<div class="question-meta"><span>QUESTION {{ loop.index }} OF {{ assessment.question_set|length }}</span><span>{{ question.skill }}</span><span class="level">{{ question.level }}</span><span class="badge {{ 'blue' if question.question_type == 'mcq' else 'warning' if question.question_type == 'scenario' else 'purple' }}">{{ question.question_type|upper }}</span></div>
+<h2>{{ question.text }}</h2>
+{% if question.question_type in ['mcq', 'scenario'] %}
+<div class="options">{% for option in question.options %}<label class="option"><input type="radio" name="question_{{ question.number }}" value="{{ 'ABCD'[loop.index0] }}"><span class="option-letter">{{ 'ABCD'[loop.index0] }}</span><span>{{ option }}</span></label>{% endfor %}</div>
+{% else %}
+<div class="descriptive-response"><label for="answer_{{ question.number }}"><b>Your response</b><span>Use the situation, actions, control/reasoning and outcome. Your own evidence will be evaluated against the rubric.</span></label><textarea id="answer_{{ question.number }}" name="question_{{ question.number }}" rows="9" maxlength="5000" placeholder="Describe the situation, what you did, the control or reasoning you applied, and the outcome..."></textarea><div class="response-meta"><span>Rubric: Situation · Action · Control / Reasoning · Outcome</span><span><span id="chars_{{ question.number }}">0</span>/5000</span></div></div>
+{% endif %}
+</div>
+{% endfor %}
+<div class="assessment-actions"><button type="button" class="button secondary" id="previous-question">← Previous</button><div><span id="save-note">Your answers are saved locally in this session.</span><button type="button" class="button" id="next-question">Next →</button><button type="button" class="button hidden" id="submit-assessment">Submit Assessment</button></div></div>
+</article></form></div>
+<div class="modal-backdrop hidden" id="submit-modal" role="dialog" aria-modal="true"><div class="modal"><span class="modal-icon">✓</span><h2>Submit assessment?</h2><p>You have answered <b id="modal-answered">0</b> of {{ assessment.question_set|length }} questions. Once submitted, your responses cannot be changed.</p><div class="modal-actions"><button class="button secondary" type="button" data-close-modal>Continue assessment</button><button class="button" type="button" id="confirm-submit">Submit now</button></div></div></div>
+{% endblock %}
+{% block page_scripts %}<script src="{{ url_for('static', path='js/assessment.js') }}"></script>{% endblock %}

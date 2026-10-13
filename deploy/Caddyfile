@@ -1,0 +1,11 @@
+# TLS at the edge. `tls internal` issues a certificate from Caddy's local CA
+# (trust it, or swap in your domain and Caddy fetches a public certificate).
+# Only the portal is published; the pipeline API stays on the private network.
+localhost {
+	tls internal
+	encode zstd gzip
+	reverse_proxy portal:8010
+	header {
+		-Server
+	}
+}

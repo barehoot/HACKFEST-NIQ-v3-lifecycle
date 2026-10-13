@@ -1,0 +1,84 @@
+{# Employee-lifecycle building blocks shared by the manager, leader and employee pages. #}
+{% set FACTOR_KEYS = ['skills', 'review', 'assessment', 'evidence', 'development'] %}
+{% set FACTOR_SHORT = {'skills': 'Skills', 'review': 'Review', 'assessment': 'Assessment', 'evidence': 'Evidence', 'development': 'Development'} %}
+
+{% macro band_chip(band, tier=none, tone='none') -%}
+<span class="band-chip tone-{{ tone }}">{{ band }}{% if tier %} <small>· {{ tier }}</small>{% endif %}</span>
+{%- endmacro %}
+
+{% macro score_ring(score, tone, size='') -%}
+{% if score is not none %}<span class="score-ring {{ size }} tone-{{ tone }}" style="--v: {{ score }}" role="img" aria-label="Score {{ score }} out of 100"><b>{{ score }}</b></span>
+{% else %}<span class="score-ring empty {{ size }} tone-none" role="img" aria-label="No score yet"><b>—</b></span>{% endif %}
+{%- endmacro %}
+
+{% macro signals(items, limit=3) -%}
+{% if items %}<ul class="sig-list">{% for s in items[:limit] %}<li class="sig tone-{{ s.tone }}">{{ s.label }}</li>{% endfor %}
+{% if items|length > limit %}<li class="sig">+{{ items|length - limit }}</li>{% endif %}</ul>{% endif %}
+{%- endmacro %}
+
+{% macro factor_bars(factors, tone, missing=[]) -%}
+<ul class="factor-list tone-{{ tone }}">
+  {% for f in factors %}
+  <li class="factor-row"><b>{{ f.label or FACTOR_SHORT.get(f.key, f.key) }}</b>
+    <span class="factor-track" role="img" aria-label="{{ f.score }} out of 100"><i style="width: {{ f.score }}%"></i></span>
+    <span class="num">{{ f.score }}</span><small>{{ f.detail }}{% if f.weight %} · weight {{ f.weight }}{% endif %}</small></li>
+  {% endfor %}
+</ul>
+{% if missing %}<p class="factor-missing">No data yet (not counted against them): {{ missing|join(', ') }}.</p>{% endif %}
+{%- endmacro %}
+
+{# The pop-out employee card. Click / Enter opens the quick view; the link opens the full profile. #}
+{% macro person_card(c) -%}
+{% set present = {} %}{% for f in c.factors %}{% set _ = present.update({f.key: f.score}) %}{% endfor %}
+<article class="person-card tone-{{ c.tone }}" data-card-url="/people/{{ c.user_id }}/card" aria-label="{{ c.name }}, {{ c.band }}">
+  <div class="pc-top">
+    <span class="pc-avatar" aria-hidden="true">{{ c.initials }}</span>
+    <div class="pc-id"><b>{{ c.name }}</b><small>{{ c.role_name }}{% if c.department and c.department != '—' %} · {{ c.department }}{% endif %}</small></div>
+  </div>
+  <div>{{ band_chip(c.band, c.tier, c.tone) }}</div>
+  <div class="pc-metrics">
+    {{ score_ring(c.score, c.tone) }}
+    <div class="pc-stat"><span>Skills</span><strong>{{ c.readiness_pct ~ '%' if c.readiness_pct is not none else '—' }}</strong></div>
+    <div class="pc-stat"><span>Promotion</span><strong>{{ c.promotion_level or '—' }}</strong></div>
+  </div>
+  <div class="pc-factors" role="img" aria-label="Status factors">
+    {% for key in FACTOR_KEYS %}
+      {% if key in present %}<span class="pc-factor" title="{{ FACTOR_SHORT[key] }}: {{ present[key] }}"><i style="width: {{ present[key] }}%"></i></span>
+      {% else %}<span class="pc-factor missing" title="{{ FACTOR_SHORT[key] }}: no data"></span>{% endif %}
+    {% endfor %}
+  </div>
+  {{ signals(c.signals) }}
+  <div class="pc-foot"><button type="button" class="pc-quick" data-open-card aria-haspopup="dialog">Quick view ↗</button><a class="pc-open" href="/people/{{ c.user_id }}">Full profile →</a></div>
+</article>
+{%- endmacro %}
+
+{% macro evidence_item(e, employee_view=false, can_edit=false, employee_id='', csrf='') -%}
+<li class="ev-{{ e.sentiment }}" id="ev-{{ e.evidence_id }}">
+  <div class="ev-top"><b>{{ e.kind_label }}</b><span>{{ e.occurred_on }}</span>
+    {% if e.source == 'manual' and e.created_by_name %}<span>· logged by {{ e.created_by_name }}</span>
+    {% else %}<span>· {{ e.source_label }}</span>{% if e.created_by_name %}<span>· tagged by {{ e.created_by_name }}</span>{% endif %}{% endif %}
+    {% if e.weight and e.weight > 1 %}<span class="sig tone-info">{{ 'High' if e.weight == 3 else 'Notable' }} impact</span>{% endif %}
+    {% if not e.shared %}<span class="private-tag" title="Private manager note: not shared with the employee, so it does not count towards their status">Private note</span>{% endif %}
+    {% if e.ai %}<span class="ai-tag">{{ 'AI-evaluated' if e.source == 'manual' else 'AI-classified' }}</span>{% endif %}</div>
+  <h4>{{ e.title }}</h4>
+  <p>{{ e.summary }}</p>
+  {% if e.skills %}<div style="margin-top:6px">{% for s in e.skills %}<span class="kw">{{ s }}</span>{% endfor %}</div>{% endif %}
+  {% if e.ai and not employee_view and e.source == 'manual' %}
+    {% set suggested = e.ai.skills|reject('in', e.skills)|list %}
+    <p class="ev-ai"><b>✦ AI context:</b> {{ e.ai.summary }}{% if suggested %} <span class="muted">· skills it shows:</span> {% for s in suggested %}<span class="kw ai">{{ s }}</span>{% endfor %}{% endif %}</p>
+    {% if e.ai.tone_check %}<p class="ev-tone" role="note">⚠ {{ e.ai.tone_check }}</p>{% endif %}
+  {% endif %}
+  {% if e.action_items %}<p style="margin-top:6px"><small><b>Agreed actions:</b> {{ e.action_items|join('; ') }}</small></p>{% endif %}
+  {% if e.employee_comment %}<div class="reply"><b>{{ 'Your comment' if employee_view else 'Employee comment' }}:</b> {{ e.employee_comment }}</div>{% endif %}
+  {% if employee_view and not e.employee_comment %}
+    <details class="lc-disclosure" style="margin-top:8px"><summary>Add your side</summary>
+      <form method="post" action="/employee/evidence/{{ e.evidence_id }}/comment" class="lc-form"><input type="hidden" name="csrf_token" value="{{ csrf }}">
+        <label>Your comment <textarea name="comment" maxlength="1500" required placeholder="Context your manager should know"></textarea></label>
+        <div class="actions"><button class="btn-ghost" type="submit">Save comment</button></div></form></details>
+  {% endif %}
+  {% if can_edit %}
+    <form method="post" action="/people/{{ employee_id }}/evidence/{{ e.evidence_id }}/retract" style="margin-top:8px">
+      <input type="hidden" name="csrf_token" value="{{ csrf }}"><button class="link-button" type="submit">Withdraw from the record</button></form>
+  {% endif %}
+</li>
+{%- endmacro %}

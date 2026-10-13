@@ -1,0 +1,45 @@
+{% extends 'base.html' %}
+{% block title %}{{ posting.title }} · Internal job{% endblock %}
+{% block breadcrumb %}{{ current_user.role_label }} / Internal jobs / {{ posting.title }}{% endblock %}
+{% block content %}
+<a class="text-link" href="{{ '/employee/career#jobs' if current_user.role in ('employee', 'admin') else '/talent' }}">← Internal jobs</a>
+<div class="page-heading" style="margin-top:8px"><div><p class="eyebrow">INTERNAL POSTING · {{ 'SMARTRECRUITERS' if posting.source == 'smartrecruiters' else 'DEMO FEED' }}{% if posting.status == 'closed' %} · CLOSED{% endif %}</p>
+  <h1>{{ posting.title }}</h1>
+  <p>{{ posting.department or '—' }}{% if posting.location %} · {{ posting.location }}{% endif %}{% if posting.employment_type %} · {{ posting.employment_type }}{% endif %}{% if posting.experience_level %} · {{ posting.experience_level }}{% endif %}{% if posting.released_on %} · posted {{ posting.released_on }}{% endif %}</p></div>
+  {% if posting.apply_url %}<a class="btn-ghost" href="{{ posting.apply_url }}" target="_blank" rel="noopener noreferrer">Open in SmartRecruiters ↗</a>{% endif %}</div>
+
+<section class="lc-grid-2 lc-section">
+  <article class="lc-card"><h2>Job description</h2>
+    {% if posting.description %}<div class="jd-text">{{ posting.description }}</div>{% else %}<p class="lc-meta">No description in the feed.</p>{% endif %}
+    {% if posting.qualifications %}<h3 class="sub-h">Qualifications</h3><div class="jd-text">{{ posting.qualifications }}</div>{% endif %}
+  </article>
+  <article class="lc-card">
+    {% if posting.role_id %}
+    <h2>Skills it needs <small class="muted">· {{ posting.role_name }}</small></h2>
+    {% if analysis %}{% set x = analysis %}
+      <div class="asp-stats"><div><span>At target</span><strong>{{ x.met }}/{{ x.total }}</strong></div><div><span>Readiness</span><strong>{{ x.promotion.level }}</strong></div>
+        <div><span>Path</span><strong>{{ x.weeks_total }} wks</strong></div></div>
+      <div class="table-wrap"><table><thead><tr><th>Skill</th><th>Target</th><th>Me</th></tr></thead><tbody>
+        {% for r in x.rows %}<tr><td>{{ r.skill }}{% if r.is_critical %}<small>Critical</small>{% endif %}</td><td>L{{ r.target }}</td>
+          <td>{% if r.level is none %}<span class="src src-none">—</span>{% else %}<span class="src src-{{ r.source }}">L{{ r.level }} · {{ r.source_label }}</span>{% endif %}</td></tr>{% endfor %}</tbody></table></div>
+    {% else %}
+      <div class="table-wrap"><table><thead><tr><th>Skill</th><th>Target</th></tr></thead><tbody>
+        {% for s in skills %}<tr><td>{{ s.skill }}{% if s.is_critical %}<small>Critical</small>{% endif %}</td><td>L{{ s.target_level }}</td></tr>{% endfor %}</tbody></table></div>
+      <a class="text-link" href="/talent?role={{ posting.role_id }}">See the talent pool for this role →</a>
+    {% endif %}
+    {% else %}
+    <h2>Skills it needs</h2><p class="lc-meta">This posting isn't mapped to a job profile yet. {% if current_user.role in ('admin', 'hr') %}<a class="text-link" href="/org/jobs">Map it</a> or <a class="text-link" href="/org/onboard?posting={{ posting.posting_id }}">onboard it as a job profile</a>.{% else %}HR has been asked to map it.{% endif %}</p>
+    {% endif %}
+
+    {% if current_user.role in ('employee', 'admin') and posting.status == 'open' %}
+    <h3 class="sub-h">Interested?</h3>
+    {% if not aspiring %}<form method="post" action="/employee/career/aspirations" style="margin-bottom:10px"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="posting_id" value="{{ posting.posting_id }}">
+      <button class="btn-ghost" type="submit">＋ Add as a career aspiration</button></form>{% endif %}
+    <form method="post" action="/employee/career/apply" class="lc-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <input type="hidden" name="posting_id" value="{{ posting.posting_id }}"><input type="hidden" name="role_id" value="{{ posting.role_id or '' }}">
+      <label>Why this role, and what you'd bring <textarea name="note" maxlength="1500" required minlength="20"></textarea></label>
+      <div class="actions"><button class="button" type="submit">Apply internally</button><span class="lc-meta">The hiring contact and your manager are told.</span></div></form>
+    {% endif %}
+  </article>
+</section>
+{% endblock %}

@@ -1,0 +1,116 @@
+{% extends 'base.html' %}
+{% block title %}Workplace Simulation{% endblock %}
+{% block breadcrumb %}Employee / Workplace Simulation{% endblock %}
+{% macro thread(s, live=False) %}
+<div class="sim-thread">
+  <div class="bubble agent"><small>AI assessor · task</small>{{ s.question_text }}</div>
+  {% set ns = namespace(probe=0) %}
+  {% for turn in s.turns %}
+    {% if turn.role == 'agent' %}{% set ns.probe = ns.probe + 1 %}
+    <div class="bubble agent"{% if live and loop.last %} id="latest"{% endif %}><small>AI assessor · follow-up {{ ns.probe }} of {{ s.max_probes }}</small>{{ turn.text }}</div>
+    {% else %}
+    <div class="bubble candidate"{% if live and loop.last %} id="latest"{% endif %}><small>You</small>{{ turn.text }}</div>
+    {% endif %}
+  {% endfor %}
+</div>
+{% endmacro %}
+{% macro coding_section() %}
+{% if coding_tasks %}
+<section id="coding" style="margin-top:16px">
+  <div class="section-heading"><div><h2>Coding scenario{{ 's' if coding_tasks|length > 1 }}</h2>
+    <p>Added because your resume mentions {% for t in coding_tasks %}{% for k in t.matched_keywords %}<span class="kw">{{ k }}</span>{% endfor %}{% endfor %}. One attempt each. Your code is read by a reviewer and never run; an SME confirms the score.</p></div></div>
+  {% for t in coding_tasks %}
+  <article class="card sim-card code-card" style="margin-bottom:12px">
+    <div class="sim-head"><span class="eyebrow">Coding task {{ loop.index }} of {{ coding_tasks|length }}</span><span class="badge purple">{{ t.language|title }}</span>
+      <span class="badge">{{ t.difficulty|title }}</span><span class="sim-probes">About {{ t.time_minutes }} minutes</span></div>
+    <h2>{{ t.title }}</h2>
+    <div class="sim-brief"><small>THE TASK</small><p style="white-space:pre-line">{{ t.prompt }}</p></div>
+    {% if t.attempt %}
+      <div class="flash ok" role="status">✓ Submitted {{ t.attempt.submitted_at[:16]|replace('T', ' ') }} UTC. It goes to your manager with the rest of your assessment.</div>
+    {% else %}
+    <form method="post" action="/employee/evidence/{{ cycle.cycle_id }}/code" class="code-form" data-busy-label="Submitting…">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="challenge_id" value="{{ t.challenge_id }}">
+      <input type="hidden" name="paste_chars" value="0">
+      <label for="code-{{ t.challenge_id }}"><b>Your solution</b> <small class="muted">Tab indents. Write it yourself: pasted text is recorded for the reviewer.</small></label>
+      <textarea class="code" id="code-{{ t.challenge_id }}" name="code" maxlength="8000" spellcheck="false" autocomplete="off" required>{{ t.starter_code or '' }}</textarea>
+      <div class="sim-actions"><small>Submit once you're happy: one attempt.</small><button class="button" type="submit">Submit solution</button></div>
+    </form>
+    {% endif %}
+  </article>
+  {% endfor %}
+</section>
+{% endif %}
+{% endmacro %}
+{% block content %}
+<div class="page-heading"><div><p class="eyebrow">A4 EVIDENCE · WORKPLACE SIMULATION</p><h1>Workplace simulation</h1><p>Work through each scenario as you would on the job. After each response the AI assessor may ask up to three follow-up questions to understand how you would handle it.</p></div></div>
+<div class="notice-card"><b>How this works:</b> the assessor asks follow-ups to find evidence of the skill, not to trick you — be specific about what you would check, do, say and document. Your responses and the assessor's evaluation go to your manager, who makes the decision. Don't include passwords or sensitive personal data.</div>
+<div class="notice-card" style="margin-top:8px"><b>Answer in your own words.</b> Responses are checked for pasted text, implausible typing speed and AI-generated wording. Answers that look AI-written are marked down and flagged to your manager.</div>
+
+{% if error %}<div class="flash err" role="alert">{{ error }}</div>{% endif %}
+{% if notice %}<div class="flash ok" role="status">{{ notice }}</div>{% endif %}
+
+{% if sim and sim.scenarios %}
+<ol class="sim-steps" aria-label="Scenarios">
+  {% for s in sim.scenarios %}
+  <li class="{{ 'done' if s.done else 'current' if sim.current and s.question_id == sim.current.question_id else '' }}">
+    <span>{{ '✓' if s.done else s.index }}</span><div><b>{{ s.skill }}</b><small>{{ 'Complete' if s.done else 'In progress' if sim.current and s.question_id == sim.current.question_id else 'Up next' }}</small></div>
+  </li>
+  {% endfor %}
+</ol>
+
+{% for s in sim.scenarios if s.done %}
+<details class="card sim-done">
+  <summary><b>Scenario {{ s.index }} · {{ s.scenario_title or s.skill }}</b> <span class="badge success">✓ Complete</span> <small>{{ s.responses }} response(s) · {{ s.probes_used }} follow-up(s) · {{ s.end_reason }}</small></summary>
+  {% if s.scenario %}<div class="sim-brief"><small>THE SITUATION</small><p>{{ s.scenario }}</p></div>{% endif %}
+  {{ thread(s) }}
+</details>
+{% endfor %}
+
+{% if sim.current %}{% set s = sim.current %}
+<article class="card sim-card">
+  <div class="sim-head">
+    <span class="eyebrow">Scenario {{ s.index }} of {{ sim.scenarios|length }}</span>
+    <span class="badge purple">{{ s.skill }}</span>
+    {% if s.is_critical %}<span class="badge warning">Critical skill</span>{% endif %}
+    <span class="sim-probes">Follow-ups used: <b>{{ s.probes_used }}</b> of {{ s.max_probes }}</span>
+  </div>
+  <h2>{{ s.scenario_title or s.skill }}</h2>
+  {% if s.scenario %}<div class="sim-brief"><small>THE SITUATION</small><p>{{ s.scenario }}</p></div>{% endif %}
+  {{ thread(s, live=True) }}
+  <form method="post" action="/employee/evidence/{{ cycle.cycle_id }}/respond" class="sim-form" data-busy-label="The assessor is reading your response…">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="question_id" value="{{ s.question_id }}">
+    <input type="hidden" name="paste_chars" value="0"><input type="hidden" name="paste_events" value="0"><input type="hidden" name="active_seconds" value="">
+    <label for="response"><b>{{ 'Your response to the follow-up' if s.turns and s.turns[-1].role == 'agent' else 'Your response' }}</b></label>
+    <textarea id="response" name="response" rows="6" maxlength="3000" required placeholder="What would you do first, what would you check, who would you involve, and why?"></textarea>
+    <div class="sim-actions"><small>The assessor may take a few seconds to reply.</small><button class="button" type="submit">Send response</button></div>
+  </form>
+  {% if s.responses %}
+  <form method="post" action="/employee/evidence/{{ cycle.cycle_id }}/finish-scenario" class="sim-finish">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="question_id" value="{{ s.question_id }}">
+    <button class="link-button" type="submit">I've said all I can — finish this scenario</button>
+  </form>
+  {% endif %}
+</article>
+{% endif %}
+
+{{ coding_section() }}
+
+{% if sim and sim.scenarios and not sim.current and sim.all_done %}
+{% set coding_pending = coding_tasks|rejectattr('attempt')|list %}
+<article class="card sim-card sim-complete" id="latest">
+  <div class="empty-plan-icon">✓</div>
+  <h2>All scenarios complete</h2>
+  <p class="muted-copy">{% if coding_pending %}Submit your coding task above first, then send everything to your manager.{% else %}Submit to send your simulation to your manager. You can't change your responses afterwards.{% endif %}</p>
+  <form method="post" action="/employee/evidence/{{ cycle.cycle_id }}/submit" data-busy-label="Preparing the evidence report…">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <button class="button" type="submit">Submit simulation for review →</button>
+  </form>
+</article>
+{% endif %}
+{% elif sim %}
+{{ coding_section() }}
+<div class="card empty-plan-card"><h2>No simulation needed</h2><p>Nothing further is required for this round.</p>
+  <form method="post" action="/employee/evidence/{{ cycle.cycle_id }}/submit"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="button" type="submit">Continue →</button></form>
+</div>
+{% endif %}
+{% endblock %}

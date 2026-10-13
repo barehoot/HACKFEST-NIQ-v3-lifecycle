@@ -1,0 +1,75 @@
+{% extends 'base.html' %}
+{% from 'partials/skills_ai.html' import readiness_card, suggestion_review, suggest_button %}
+{% block title %}{{ d.role.role_name }} · Job Profile{% endblock %}
+{% block breadcrumb %}{{ current_user.role_label }} / Job Profiles / {{ d.role.role_name }}{% endblock %}
+{% block content %}
+{% set editor = current_user.role in ('admin', 'leader', 'hr') %}
+<a class="text-link" href="/org/job-profiles">← All job profiles</a>
+<div class="page-heading" style="margin-top:8px"><div><p class="eyebrow">JOB PROFILE · {{ d.role.tower }} · {{ d.role.role_grade }}</p><h1>{{ d.role.role_name }}</h1>
+  <p>{{ d.role.process_group }}{% if d.profile.department_name %} · {{ d.profile.department_name }}{% endif %} · {{ d.people }} employee(s) hold this job title. {{ d.profile.description or '' }}</p></div></div>
+{% if notice %}<div class="flash ok" role="status">{{ notice }}</div>{% endif %}
+{% if error %}<div class="flash err" role="alert"><b>Not saved:</b> {{ error }}</div>{% endif %}
+
+<section class="lc-grid-2 lc-section">
+  <article class="lc-card" id="ai-skills">
+    <div class="lc-card-head"><div><h2>✦ AI skill pitch</h2><p>Agent 8 compares the role description with the skill catalogue and logged market trends, and pitches skills this job should require. {{ 'You apply the ones you keep.' if editor else 'Your picks go to an admin, HR partner or leader as proposals.' }}</p></div>
+      {{ suggest_button(d.role.role_id, 'detail', csrf_token, '✦ Pitch again' if suggestions else '✦ Pitch skills with AI') }}</div>
+    {% if suggestions %}{{ suggestion_review(suggestions, d.role.role_id, 'detail', csrf_token, editor) }}
+    {% else %}<div class="lc-empty">No pitch waiting. Ask Agent 8 when the role or the market changes.</div>{% endif %}
+  </article>
+  {{ readiness_card(readiness, d.role.role_id) }}
+</section>
+
+<section class="lc-section">
+  <article class="lc-card"><h2>Required skills ({{ d.skills|length }})</h2>
+    <p class="lc-sub">Target level 1–5 and criticality. The behaviour indicator grounds AI question generation, so make it concrete.</p>
+    <div class="table-wrap"><table class="jp-skills"><thead><tr><th>Skill</th><th>Target</th><th>Critical</th><th>Behaviour at target</th></tr></thead><tbody>
+      {% for s in d.skills %}<tr><td><b>{{ s.skill }}</b><small>{{ s.capability or '' }}</small></td><td class="nowrap">L{{ s.target_level }}</td>
+        <td>{% if s.is_critical %}<span class="badge warning">Critical</span>{% else %}—{% endif %}</td><td class="jp-behaviour">{{ s.behavior_indicator or '—' }}</td></tr>
+      {% else %}<tr><td colspan="4" class="empty">No skills yet. Add the first one.</td></tr>{% endfor %}
+    </tbody></table></div>
+  </article>
+</section>
+
+<section class="lc-grid-2 lc-section jp-lower">
+  <article class="lc-card"><h2>{{ 'Change a requirement' if editor else 'Propose a change' }}</h2>
+    <p class="lc-sub">{{ 'Applied straight away; everyone in the role is re-scored.' if editor else 'An admin, HR partner or leader approves it; you are notified either way.' }}</p>
+    <form method="post" action="/org/job-profiles/{{ d.role.role_id }}/skills" class="lc-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <div class="row"><label>Change <select name="action">{% for k, label in actions.items() %}<option value="{{ k }}">{{ label }}</option>{% endfor %}</select></label>
+        <label>Skill <input name="skill" list="skill-options" maxlength="120" required placeholder="Existing or new skill"></label></div>
+      <datalist id="skill-options">{% for s in d.skills %}<option value="{{ s.skill }}">{% endfor %}{% for s in d.skill_options %}<option value="{{ s.skill }}">{% endfor %}</datalist>
+      <div class="row"><label>Target level <select name="target_level">{% for n in range(1, 6) %}<option value="{{ n }}" {{ 'selected' if n == 3 }}>L{{ n }}</option>{% endfor %}</select></label>
+        <label>Capability <input name="capability" maxlength="80" placeholder="e.g. Technical, Digital"></label></div>
+      <label class="check"><input type="checkbox" name="is_critical" value="1"> Critical skill (must be met for promotion readiness)</label>
+      <label>Behaviour at the target level <span class="hint">Required for a new skill</span><textarea name="behavior_indicator" maxlength="400" placeholder="e.g. Builds and maintains Python scripts that automate bank-statement matching, with exception logs"></textarea></label>
+      <label>Why <textarea name="reason" maxlength="600" required placeholder="What changed in the market, tooling or regulation"></textarea></label>
+      {% if d.trends %}<label>Linked trend <select name="trend_id"><option value="">—</option>{% for t in d.trends %}<option value="{{ t.trend_id }}">{{ t.skill }} ({{ directions[t.direction] }})</option>{% endfor %}</select></label>{% endif %}
+      <div class="actions"><button class="button" type="submit">{{ 'Apply change' if editor else 'Send proposal' }}</button></div>
+    </form>
+  </article>
+
+  <article class="lc-card" id="changes"><h2>Change history <small class="muted">({{ d.changes|length }})</small></h2>
+    <div class="jp-history">
+    {% for c in d.changes %}
+    <div class="jp-change">
+      <div class="jp-change-head"><b>{{ c.action|title }} “{{ c.skill }}”{% if c.payload.target_level %} → L{{ c.payload.target_level }}{% endif %}{% if c.payload.is_critical %} · critical{% endif %}</b>
+        <span class="badge {{ 'success' if c.status == 'applied' else 'danger' if c.status == 'rejected' else 'warning' }}">{{ c.status|title }}</span></div>
+      <p class="jp-change-why">{{ c.reason }}</p>
+      <p class="lc-meta" style="margin:4px 0 0">Proposed by {{ c.proposed_by_name or c.proposed_by }} ({{ c.proposed_by_role or '' }}) · {{ c.proposed_at[:10] }}{% if c.decided_by_name %} · decided by {{ c.decided_by_name }}{% endif %}{% if c.decision_note %}: “{{ c.decision_note }}”{% endif %}</p>
+      {% if editor and c.status == 'proposed' %}
+      <form method="post" action="/org/changes/{{ c.change_id }}/decision" class="lc-form" style="margin-top:8px"><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <label>Note <input name="note" maxlength="600" placeholder="Required when rejecting"></label>
+        <div class="actions"><button class="button" type="submit" name="decision" value="approve">Approve & apply</button><button class="btn-danger" type="submit" name="decision" value="reject">Reject</button></div></form>
+      {% endif %}
+    </div>
+    {% else %}<div class="lc-empty">No changes yet: the requirements are the dataset baseline.</div>{% endfor %}
+    </div>
+  </article>
+</section>
+
+{% if d.trends %}
+<section class="lc-section"><article class="lc-card"><h2>Trends for {{ d.role.tower }}</h2>
+  {% for t in d.trends %}<div class="trend"><span class="trend-dir {{ t.direction }}">{{ directions[t.direction] }}</span><div><b>{{ t.skill }}</b><p style="margin:3px 0 0;font-size:12.5px">{{ t.note }}</p></div></div>{% endfor %}
+</article></section>
+{% endif %}
+{% endblock %}

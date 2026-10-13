@@ -1,0 +1,53 @@
+{# Agent 8 building blocks shared by onboarding and the job-profile page:
+   the readiness checklist and the review form for AI-pitched skills. #}
+
+{% macro readiness_card(r, role_id) -%}
+<article class="lc-card lc-readiness" aria-labelledby="ready-{{ role_id }}">
+  <div class="lc-card-head"><div><h2 id="ready-{{ role_id }}">Readiness</h2><p>What this job profile needs before people can be assessed against it.</p></div>
+    <span class="ready-pct tone-{{ 'best' if r.pct == 100 else 'good' if r.pct >= 67 else 'low' }}" role="img" aria-label="{{ r.done }} of {{ r.total }} done"><b>{{ r.pct }}%</b><small>{{ r.done }}/{{ r.total }}</small></span></div>
+  <ul class="ready-list">
+    {% for c in r.checks %}
+    <li class="{{ 'ok' if c.ok else 'todo' }}"><span class="ready-ico" aria-hidden="true">{{ '✓' if c.ok else '○' }}</span>
+      <div><b>{{ c.label }}</b><small>{{ c.detail }}</small>
+        {% if not c.ok and c.link %}<a class="text-link" href="{{ c.link }}">{{ c.link_label }} →</a>{% endif %}</div>
+      <span class="visually-hidden">{{ 'done' if c.ok else 'to do' }}</span></li>
+    {% endfor %}
+  </ul>
+  <p class="lc-meta" style="margin:10px 0 0">{{ r.people }} employee(s) hold this job title today.</p>
+</article>
+{%- endmacro %}
+
+{% macro suggestion_review(suggestions, role_id, back, csrf_token, editor) -%}
+{% set ai = suggestions|selectattr('generated_by', 'equalto', 'agent')|list %}
+<form method="post" action="/org/job-profiles/{{ role_id }}/suggestions" class="pitch-form">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="back" value="{{ back }}">
+  <p class="lc-meta">{% if ai %}<span class="ai-tag">✦ AI-generated</span> Agent 8 pitched these from the role description, the skill catalogue and logged market trends.{% else %}<span class="sig tone-warn">Rules</span> The AI was unavailable, so these come from keyword matching against the catalogue.{% endif %}
+    Edit the level, criticality or behaviour, then {{ 'apply' if editor else 'propose' }} the ones you keep. Unticked suggestions are dismissed.</p>
+  <div class="pitch-list">
+    {% for s in suggestions %}{% set p = s.payload %}
+    <fieldset class="pitch">
+      <legend class="visually-hidden">{{ s.skill }}</legend>
+      <label class="pitch-pick"><input type="checkbox" name="accept_{{ s.suggestion_id }}" value="1" checked>
+        <span><b>{{ s.skill }}</b>
+          {% if p.existing %}<span class="sig tone-info">In catalogue</span>{% else %}<span class="sig tone-good">New skill</span>{% endif %}
+          {% if p.capability %}<small>{{ p.capability }}</small>{% endif %}</span></label>
+      {% if s.rationale %}<p class="pitch-why">{{ s.rationale }}</p>{% endif %}
+      <div class="pitch-fields">
+        <label>Target <select name="level_{{ s.suggestion_id }}">{% for n in range(1, 6) %}<option value="{{ n }}" {{ 'selected' if n == p.target_level }}>L{{ n }}</option>{% endfor %}</select></label>
+        <label class="check"><input type="checkbox" name="critical_{{ s.suggestion_id }}" value="1" {{ 'checked' if p.is_critical }}> Critical</label>
+        <label class="pitch-behaviour">Behaviour at the target level
+          <textarea name="behavior_{{ s.suggestion_id }}" maxlength="400" rows="2" placeholder="Observable work at this level -- question generation is grounded on it">{{ p.behavior_indicator or '' }}</textarea></label>
+      </div>
+    </fieldset>
+    {% endfor %}
+  </div>
+  <div class="actions" style="margin-top:12px"><button class="button" type="submit">{{ 'Apply ticked skills' if editor else 'Propose ticked skills' }}</button>
+    <span class="lc-meta">{{ 'Applied straight away as recorded requirement changes; everyone in the role is re-scored.' if editor else 'An admin, HR partner or leader approves each proposal.' }}</span></div>
+</form>
+{%- endmacro %}
+
+{% macro suggest_button(role_id, back, csrf_token, label='✦ Pitch skills with AI') -%}
+<form method="post" action="/org/job-profiles/{{ role_id }}/suggest" class="inline-form" data-busy-label="Agent 8 is reading the role…">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="back" value="{{ back }}">
+  <button class="btn-ai" type="submit">{{ label }}</button></form>
+{%- endmacro %}

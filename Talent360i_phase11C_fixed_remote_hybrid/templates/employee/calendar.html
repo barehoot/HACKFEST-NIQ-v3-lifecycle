@@ -1,0 +1,16 @@
+{% extends 'base.html' %}
+{% from 'partials/calendar.html' import calendar %}
+{% block title %}My Calendar{% endblock %}
+{% block breadcrumb %}Employee / My Calendar{% endblock %}
+{% block content %}
+<div class="page-heading"><div><p class="eyebrow">MY SCHEDULE</p><h1>My calendar</h1><p>Your booked training and assessments, and the progress of your own assessments. Your scheduler and manager book sessions; contact them to change one.</p></div><a class="button secondary" href="/employee/learning">View my training plan</a></div>
+
+<div class="metric-grid compact">
+  <article class="metric-card"><p>Training · {{ cal.label }}</p><strong>{{ cal.counts.training }}</strong><small>Sessions this month</small></article>
+  <article class="metric-card"><p>Assessments · {{ cal.label }}</p><strong>{{ cal.counts.assessment }}</strong><small>Booked this month</small></article>
+  <article class="metric-card"><p>Next 7 days</p><strong>{{ cal.counts.week_ahead }}</strong><small>Booked sessions</small></article>
+  <article class="metric-card"><p>Next up</p><strong style="font-size:15px">{{ upcoming[0].date if upcoming else '—' }}</strong><small>{{ upcoming[0].short_title if upcoming else 'Nothing booked yet' }}</small></article>
+</div>
+
+{{ calendar(cal, '/employee/calendar', csrf_token, can_cancel=False, show_who=False, empty_text='Nothing on your calendar in ' ~ cal.label ~ '.', ics_url='/employee/calendar.ics') }}
+{% endblock %}

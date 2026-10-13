@@ -1,0 +1,90 @@
+{% extends 'base.html' %}
+{% import 'partials/outline.html' as ol with context %}
+{% block title %}Assign Training{% endblock %}
+{% block breadcrumb %}Manager / Assign Training{% endblock %}
+{% block content %}
+<div class="page-heading"><div><p class="eyebrow">TEAM DEVELOPMENT · ENROLMENT</p><h1>Assign training</h1><p>Enrol your direct reports in the catalogue courses that close their TNI skill gaps. Enrolments appear on the employee's training plan and calendar, and on the scheduler's calendar.</p></div><a class="button secondary" href="/manager/learning">Open Learning &amp; TNI</a></div>
+{% if notice %}<div class="flash ok" role="status">{{ notice }}</div>{% endif %}
+{% if error %}<div class="flash err" role="alert"><b>Not enrolled:</b> {{ error }}</div>{% endif %}
+
+{% set upcoming = enrolments|selectattr('status', 'equalto', 'scheduled')|list %}
+<div class="metric-grid compact">
+  <article class="metric-card"><p>People with open gaps</p><strong>{{ people|selectattr('path')|list|length }}</strong><small>Of {{ people|length }} with TNI data</small></article>
+  <article class="metric-card"><p>Active enrolments</p><strong>{{ upcoming|length }}</strong><small>{{ upcoming|map(attribute='user_id')|unique|list|length }} people</small></article>
+  <article class="metric-card"><p>Completed</p><strong>{{ enrolments|selectattr('status', 'equalto', 'completed')|list|length }}</strong><small>Sessions marked done</small></article>
+  <article class="metric-card"><p>Due for sign-off</p><strong>{{ enrolments|selectattr('can_complete')|list|length }}</strong><small>Session date has passed</small></article>
+</div>
+
+<form method="get" action="/manager/training" class="card viz-card enrol-picker">
+  <label for="employee"><b>Employee</b></label>
+  <select id="employee" name="employee">
+    {% for p in people %}<option value="{{ p.user_id }}" {{ 'selected' if selected and p.user_id == selected.user_id }}>{{ p.user_id }} · {{ p.name }} — {{ p.summary.gaps }} open gap(s)</option>{% endfor %}
+  </select>
+  <button class="button secondary" type="submit">Show recommendations</button>
+</form>
+
+{% if selected %}
+<div class="card table-card" style="margin:12px 0 16px">
+  <div class="card-toolbar"><div><h2>{{ selected.name }} · {{ selected.role_name }}</h2><p>Recommended courses in skill-up order (severity first). {{ selected.summary.gaps }} open gap(s), {{ selected.summary.readiness_pct }}% of assessed skills at target.</p></div>
+    {% if selected.path %}
+    <form method="post" action="/manager/training/enroll-all" class="enrol-inline">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="employee_id" value="{{ selected.user_id }}">
+      <input type="date" name="start_date" min="{{ today }}" value="{{ today }}" required aria-label="Start date">
+      <select name="cadence_days" aria-label="Cadence"><option value="7">Weekly</option><option value="14">Fortnightly</option></select>
+      <button class="button" type="submit">Enrol in all recommended</button>
+    </form>
+    {% endif %}
+  </div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Skill gap</th><th>Level</th><th>Recommended course</th><th>Enrolment</th></tr></thead>
+    <tbody>
+    {% for step in selected.path %}
+    {% set e = booked.get(step.course.course_id) if step.course else none %}
+    <tr>
+      <td><b>{{ step.skill }}</b><small>{{ step.severity }}{% if step.is_critical %} · critical skill{% endif %} · est. {{ step.weeks }} wks</small></td>
+      <td>L{{ step.current }} → L{{ step.target }}</td>
+      <td>{% if step.course %}<a class="text-link" href="/learning/catalog/{{ step.course.course_id }}">{{ step.course.course_id }}</a><small>{{ step.course.short_title }}</small>{% else %}<span class="muted">No catalogue course yet</span>{% endif %}</td>
+      <td>
+        {% if e %}<span class="badge {{ 'success' if e.status == 'completed' else 'blue' }}">{{ '✓ Completed' if e.status == 'completed' else 'Enrolled' }}</span><small>{{ e.date }}{% if e.time %} · {{ e.time }}{% endif %}</small>
+        {% elif step.course %}
+        <form method="post" action="/manager/training/enroll" class="enrol-inline">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="employee_id" value="{{ selected.user_id }}"><input type="hidden" name="course_id" value="{{ step.course.course_id }}">
+          <input type="date" name="event_date" min="{{ today }}" value="{{ today }}" required aria-label="Session date for {{ step.skill }}">
+          <input type="time" name="start_time" value="10:00" aria-label="Start time">
+          <button class="button small-button" type="submit">Enrol</button>
+        </form>
+        {% else %}—{% endif %}
+      </td>
+    </tr>
+    {% else %}<tr><td colspan="4" class="empty">No open skill gaps for {{ selected.name }}.</td></tr>{% endfor %}
+    </tbody>
+  </table></div>
+</div>
+{% endif %}
+
+{% if outlines %}
+<div class="section-heading"><div><h2>Training from your assessment decisions</h2><p>Skill-gap and skill-up sessions Agent 5 outlined when you decided an assessment. Mark each one delivered; a gap plan triggers a re-assessment once all its sessions are done.</p></div></div>
+{% for o in outlines %}{{ ol.outline_card(o, 'manager', open=loop.first and not o.complete) }}{% endfor %}
+{% endif %}
+
+<div class="card table-card">
+  <div class="card-toolbar"><div><h2>Team enrolments</h2><p>Every training session booked for your team, by you or the scheduler.</p></div></div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Date</th><th>Employee</th><th>Course</th><th>Status</th><th></th></tr></thead>
+    <tbody>
+    {% for e in enrolments %}
+    <tr>
+      <td>{{ e.date }}<small>{{ e.time or 'All day' }}</small></td>
+      <td><b>{{ e.who }}</b><small>{{ e.user_id }}</small></td>
+      <td>{{ e.course_id }}<small>{{ e.short_title }}{% if e.notes and 'Assigned by manager' in e.notes %} · assigned by manager{% endif %}</small></td>
+      <td><span class="badge {{ 'success' if e.status == 'completed' else 'warning' if e.can_complete else 'blue' }}">{{ 'Completed' if e.status == 'completed' else 'Awaiting sign-off' if e.can_complete else 'Enrolled' }}</span></td>
+      <td>
+        {% if e.can_complete %}<form method="post" action="/manager/training/{{ e.id }}/complete" class="enrol-inline"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="link-button ok" type="submit">Mark completed</button></form>{% endif %}
+        {% if e.can_cancel %}<form method="post" action="/manager/training/{{ e.id }}/withdraw" class="enrol-inline"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="link-button" type="submit">Withdraw</button></form>{% endif %}
+      </td>
+    </tr>
+    {% else %}<tr><td colspan="5" class="empty">No training booked for your team yet.</td></tr>{% endfor %}
+    </tbody>
+  </table></div>
+</div>
+{% endblock %}

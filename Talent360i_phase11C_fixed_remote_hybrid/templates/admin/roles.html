@@ -1,0 +1,16 @@
+{% extends 'base.html' %}{% block title %}{{ page_title }}{% endblock %}{% block breadcrumb %}Admin / Roles &amp; Access{% endblock %}
+{% block content %}
+{% set access = {
+  'employee': ('Own development only', 'Takes assessments, sees their own skills, training plan, calendar and shared performance evidence.'),
+  'manager': ('Direct reports', 'Validates assessments, records evidence, reviews, development plans and probation check-ins; proposes job-profile changes (including accepted AI skill pitches).'),
+  'sme': ('Question governance', 'Generates and approves questions, builds assessments, reviews coding answers. Notified when a newly onboarded job profile needs questions.'),
+  'scheduler': ('Calendar', 'Books assessments and training and exports the calendar (.ics).'),
+  'leader': ('Departments led (or everyone)', 'Sees teams grouped by manager, decides probation, calibrates managers, approves promotions; onboards job profiles and verticals.'),
+  'hr': ('Organisation-wide, structure & skills', 'Onboards job profiles, verticals and departments; accepts Agent 8 skill pitches; maintains the skill catalogue; sets HR attributes; reads people by manager and the probation tracker. Records nothing about individual performance.'),
+  'admin': ('Everything', 'Full platform administration, including granting roles such as HR access.'),
+} %}
+<div class="page-heading"><div><p class="eyebrow">PLATFORM ADMINISTRATION</p><h1>{{ page_title }}</h1><p>Centralised role definitions used by route authorisation (enforced server-side on every request). Grant a role, including <b>HR Business Partner</b> access, from <a class="text-link" href="/admin/users">Users</a>.</p></div>
+  <a class="button" href="/admin/users">Manage users →</a></div>
+<div class="learning-grid wide">{% for role, label in roles.items() %}{% set a = access.get(role, ('', '')) %}
+  <article class="card learning-card"><span class="learning-icon">{{ '♡' if role == 'hr' else '◫' }}</span><h2>{{ label }}</h2><p><code>{{ role }}</code> · {{ a[0] }}</p><small>{{ a[1] }}</small></article>{% endfor %}</div>
+{% endblock %}

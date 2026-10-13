@@ -1,0 +1,56 @@
+{% extends 'base.html' %}
+{% import 'partials/promotion.html' as pr %}
+{% block title %}Promotions{% endblock %}
+{% block breadcrumb %}Leader / Promotions{% endblock %}
+{% block content %}
+<div class="page-heading"><div><p class="eyebrow">VERTICAL PROMOTION · TALENT REVIEW</p><h1>Promotions</h1>
+  <p>Promotion nominations managers have sent, with the evidence behind each one, and readiness for the next role across the organisation. You approve or decline; an approval is recorded for HR, it doesn't change anyone's job record here.</p></div></div>
+{% if notice %}<div class="flash ok" role="status">{{ notice }}</div>{% endif %}
+
+{% set pending = nominations|selectattr('status', 'equalto', 'pending')|list %}
+<div class="metric-grid compact">
+  <article class="metric-card"><p>Nominations to review</p><strong>{{ pending|length }}</strong><small>{{ nominations|length - pending|length }} decided</small></article>
+  <article class="metric-card"><p>Ready for next role</p><strong class="green-text">{{ summary.ready }}</strong><small>of {{ summary.with_path }} with a next role</small></article>
+  <article class="metric-card"><p>Developing</p><strong class="orange-text">{{ summary.developing }}</strong><small>50–79% of next-role skills at target</small></article>
+  <article class="metric-card"><p>Ready, not nominated</p><strong>{{ summary.ready_not_nominated|length }}</strong><small>Worth raising with their manager</small></article>
+</div>
+
+<div class="card table-card" style="margin-bottom:12px">
+  <div class="card-toolbar"><div><h2>Nominations</h2><p>Pending first. Readiness is as it was when the manager sent the profile.</p></div></div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Employee</th><th>From → to</th><th>Readiness at nomination</th><th>Manager</th><th>Sent</th><th>Status</th><th></th></tr></thead>
+    <tbody>
+    {% for n in nominations %}
+    <tr>
+      <td><b>{{ n.employee_name }}</b><small>{{ n.user_id }}</small></td>
+      <td>{{ n.from_role_name or '—' }} → <b class="inline">{{ n.to_role_name }}</b> <small>{{ n.to_role_grade }}</small></td>
+      <td>{{ pr.band_badge(n.profile.readiness.band, n.profile.readiness.pct) }}<small>{{ n.profile.readiness.validated }} validated skill(s)</small></td>
+      <td>{{ n.manager_name }}</td><td>{{ n.created_at[:10] }}</td>
+      <td><span class="badge {{ 'blue' if n.status == 'pending' else 'success' if n.status == 'approved' else 'danger' }}">{{ 'To review' if n.status == 'pending' else n.status|title }}</span></td>
+      <td><a class="text-link" href="/leader/promotions/{{ n.nomination_id }}">{{ 'Review →' if n.status == 'pending' else 'View →' }}</a></td>
+    </tr>
+    {% else %}<tr><td colspan="7" class="empty">No promotion nominations yet. Managers send them from Promotion Readiness.</td></tr>{% endfor %}
+    </tbody>
+  </table></div>
+</div>
+
+<div class="viz-grid-2">
+  <article class="card table-card">
+    <div class="card-toolbar"><div><h2>Readiness by tower</h2><p>People with a next role on the ladder.</p></div></div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Tower</th><th>Ready</th><th>Developing</th><th>Not yet</th></tr></thead>
+      <tbody>{% for t in summary.towers %}<tr><td><b>{{ t.tower }}</b></td><td>{{ t['Ready'] }}</td><td>{{ t['Developing'] }}</td><td>{{ t['Not yet'] }}</td></tr>
+      {% else %}<tr><td colspan="4" class="empty">No employees with a next role.</td></tr>{% endfor %}</tbody>
+    </table></div>
+    <p class="muted-copy" style="padding:0 18px 14px">{{ summary.top_of_ladder }} employee(s) are at the top of their modelled ladder.</p>
+  </article>
+  <article class="card table-card">
+    <div class="card-toolbar"><div><h2>Ready, not yet nominated</h2><p>≥80% of next-role skills at target and every critical skill met.</p></div></div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Employee</th><th>Next role</th><th>Readiness</th><th>Validated</th></tr></thead>
+      <tbody>{% for r in summary.ready_not_nominated %}<tr><td><b>{{ r.name }}</b><small>{{ r.current.role_name }}</small></td><td>{{ r.next.role_name }}</td><td>{{ pr.meter(r.pct) }} {{ r.pct }}%</td><td>{{ r.validated }} / {{ r.total }}</td></tr>
+      {% else %}<tr><td colspan="4" class="empty">Nobody is at "Ready" without a nomination.</td></tr>{% endfor %}</tbody>
+    </table></div>
+  </article>
+</div>
+{% endblock %}

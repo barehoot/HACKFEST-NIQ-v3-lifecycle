@@ -1,0 +1,86 @@
+{# TNI chart macros: learning curve (JS-rendered, with a table view), the
+   employee skill heatmap and the manager team heatmap. See static/js/tni.js. #}
+
+{% macro fmt_value(curve, v) -%}
+{{ ('%d%%'|format(v|round|int)) if curve.y_format == 'percent' else ('L%.1f'|format(v)) }}
+{%- endmacro %}
+
+{% macro learning_curve(curve, chart_id, label) %}
+<div class="line-chart" tabindex="0" data-source="{{ chart_id }}-data" data-label="{{ label }}" aria-describedby="{{ chart_id }}-hint"></div>
+<script type="application/json" id="{{ chart_id }}-data">{{ curve|tojson }}</script>
+<p id="{{ chart_id }}-hint" class="muted" style="font-size:11px;margin:6px 0 0">Hover or use ← → keys to step through milestones.</p>
+<details class="chart-table">
+  <summary>View as table</summary>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Week</th><th>{{ 'Skills at target' if curve.y_format == 'percent' else 'Average level' }}</th><th>Milestone</th></tr></thead>
+    <tbody>{% for p in curve.points %}<tr><td>{{ '%.1f'|format(p.x) }}</td><td>{{ fmt_value(curve, p.y) }}</td><td>{{ p.note }}</td></tr>{% endfor %}</tbody>
+  </table></div>
+</details>
+{% endmacro %}
+
+{% macro heat_state(s, c) -%}
+{%- if c.state == 'achieved' -%}Achieved (current level L{{ s.current }})
+{%- elif c.state == 'gap' -%}Gap to close: L{{ s.current }} → L{{ s.target }}
+{%- elif c.state == 'beyond' -%}Above the role target (L{{ s.target }})
+{%- else -%}Not assessed yet · role target L{{ s.target }}{%- endif -%}
+{%- endmacro %}
+
+{% macro skill_heatmap(skills) %}
+<div class="table-wrap"><table class="heat-table">
+  <thead><tr><th class="heat-skill">Skill</th>{% for level in [1, 2, 3, 4, 5] %}<th scope="col">L{{ level }}</th>{% endfor %}</tr></thead>
+  <tbody>
+  {% for s in skills %}
+  <tr>
+    <td class="heat-skill">{{ s.skill }}<small>{{ s.capability }}{% if s.is_critical %} · Critical{% endif %}{% if not s.assessed %} · Not assessed{% endif %}</small></td>
+    {% for c in s.cells %}
+    <td class="heat-cell {{ c.state }}"
+        data-tip-title="{{ s.skill }} · L{{ c.level }}"
+        data-tip="{{ heat_state(s, c) }}{% if c.is_target %}&#10;▲ Role target level{% endif %}{% if c.state == 'gap' and s.course %}&#10;Course: {{ s.course.course_id }} · {{ s.course.short_title }}{% endif %}"
+        aria-label="{{ s.skill }}, level {{ c.level }}: {{ heat_state(s, c) }}{% if c.is_target %}, role target{% endif %}">{{ '▲' if c.is_target else '' }}</td>
+    {% endfor %}
+  </tr>
+  {% endfor %}
+  </tbody>
+</table></div>
+<div class="viz-legend" style="margin-top:10px">
+  <span><i class="sw-achieved"></i>Achieved</span>
+  <span><i class="sw-gap"></i>Gap to close</span>
+  <span><i class="sw-beyond"></i>Above role target</span>
+  <span><i class="sw-unassessed"></i>Not assessed</span>
+  <span>▲ Role target level</span>
+</div>
+{% endmacro %}
+
+{% macro team_heatmap(heatmap) %}
+<div class="table-wrap"><table class="team-heat">
+  <thead><tr><th scope="col">Employee</th>{% for col in heatmap.columns %}<th scope="col" title="{{ col }}">{{ col.split(' (')[0] }}</th>{% endfor %}</tr></thead>
+  <tbody>
+  {% for row in heatmap.rows %}
+  <tr>
+    <td class="team-name">{{ row.name }}<small>{{ row.user_id }} · {{ row.readiness_pct }}% at target · <a class="text-link" href="/manager/training?employee={{ row.user_id|urlencode }}">Assign training</a></small></td>
+    {% for c in row.cells %}
+    {% if c and c.assessed %}
+    <td class="team-cell g{{ [c.gap, 3]|min }}"
+        data-tip-title="{{ row.name }} · L{{ c.current }} → L{{ c.target }}"
+        data-tip="{{ c.skill }}&#10;{{ 'At target' if c.gap == 0 else 'Gap ' ~ c.gap ~ ' level' ~ ('s' if c.gap > 1 else '') ~ ' (' ~ c.severity ~ ')' }}{% if c.course %}&#10;Course: {{ c.course.course_id }} · {{ c.course.short_title }}{% endif %}"
+        aria-label="{{ row.name }}, {{ c.skill }}: current L{{ c.current }}, target L{{ c.target }}, gap {{ c.gap }}">L{{ c.current }}</td>
+    {% elif c %}
+    <td class="team-cell na" data-tip-title="{{ row.name }}" data-tip="{{ c.skill }}&#10;Not assessed yet · target L{{ c.target }}" aria-label="{{ row.name }}, {{ c.skill }}: not assessed">—</td>
+    {% else %}
+    <td class="team-cell na" aria-label="Not part of this role">·</td>
+    {% endif %}
+    {% endfor %}
+  </tr>
+  {% endfor %}
+  </tbody>
+</table></div>
+<div class="viz-legend" style="margin-top:10px">
+  <span style="color:var(--viz-muted)">Gap to target:</span>
+  <span><i class="sw-seq-0"></i>0 · at target</span>
+  <span><i class="sw-seq-1"></i>1 level</span>
+  <span><i class="sw-seq-2"></i>2 levels</span>
+  <span><i class="sw-seq-3"></i>3 levels</span>
+  <span><i class="sw-unassessed"></i>Not assessed</span>
+  <span style="color:var(--viz-muted)">Cell text = current level</span>
+</div>
+{% endmacro %}

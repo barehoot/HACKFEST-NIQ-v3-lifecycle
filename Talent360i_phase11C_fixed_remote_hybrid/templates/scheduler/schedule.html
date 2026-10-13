@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}Schedule{% endblock %}
+{% block breadcrumb %}Scheduler / Schedule{% endblock %}
+{% from 'partials/calendar.html' import calendar %}
+{% block content %}
+<div class="page-heading"><div><p class="eyebrow">ASSESSMENT OPS · CALENDAR</p><h1>Schedule</h1><p>Every booked assessment and training session, plus live resume-assessment activity. Training is booked from each employee's TNI skill-up path.</p></div></div>
+
+{% if notice %}<div class="flash ok" role="status">{{ notice }}</div>{% endif %}
+{% if error %}<div class="flash err" role="alert"><b>Not booked:</b> {{ error }}</div>{% endif %}
+
+<div class="metric-grid compact">
+  <article class="metric-card"><p>Assessments · {{ cal.label }}</p><strong>{{ cal.counts.assessment }}</strong><small>Booked sessions and windows</small></article>
+  <article class="metric-card"><p>Training · {{ cal.label }}</p><strong>{{ cal.counts.training }}</strong><small>{{ cal.counts.people_in_training }} employee(s) in training</small></article>
+  <article class="metric-card"><p>Next 7 days</p><strong>{{ cal.counts.week_ahead }}</strong><small>Booked sessions</small></article>
+  <article class="metric-card"><p>Assessment activity</p><strong>{{ cal.counts.activity }}</strong><small>Resume-assessment updates this month</small></article>
+</div>
+
+{{ calendar(cal, '/scheduler/schedule', csrf_token, can_cancel=True, empty_text='Nothing scheduled in ' ~ cal.label ~ '. Book sessions below, or auto-schedule recommended training.', ics_url='/scheduler/schedule.ics?month=' ~ cal.month) }}
+
+<div class="schedule-forms">
+  <article class="card viz-card">
+    <div class="viz-head"><div><h2>Book an assessment</h2><p>A skill assessment for one employee.</p></div></div>
+    <form method="post" action="/scheduler/schedule/events" class="form-stack">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="event_type" value="assessment">
+      <label>Employee<select name="employee_id" required>{% for e in employees %}<option value="{{ e.id }}">{{ e.id }} · {{ e.name }}</option>{% endfor %}</select></label>
+      <div class="row-2"><label>Date<input type="date" name="event_date" min="{{ today }}" value="{{ today }}" required></label><label>Time<input type="time" name="start_time" value="10:00"></label></div>
+      <label>Duration (minutes)<input type="number" name="duration" min="5" max="480" value="45"></label>
+      <button class="button" type="submit">Book assessment</button>
+    </form>
+  </article>
+
+  <article class="card viz-card">
+    <div class="viz-head"><div><h2>Book training</h2><p>One recommended course for one open skill gap.</p></div></div>
+    <form method="post" action="/scheduler/schedule/events" class="form-stack">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="event_type" value="training">
+      <label>Employee · skill gap · course<select name="training_choice" required>
+        {% for group in training_options %}<optgroup label="{{ group.label }}">{% for o in group.options %}<option value="{{ o.value }}">{{ o.label }}</option>{% endfor %}</optgroup>{% endfor %}
+      </select></label>
+      <div class="row-2"><label>Date<input type="date" name="event_date" min="{{ today }}" value="{{ today }}" required></label><label>Time<input type="time" name="start_time" value="14:00"></label></div>
+      <label>Duration (minutes)<input type="number" name="duration" min="5" max="480" value="60"></label>
+      <button class="button" type="submit" {% if not training_options %}disabled{% endif %}>Book training</button>
+    </form>
+  </article>
+
+  <article class="card viz-card">
+    <div class="viz-head"><div><h2>Auto-schedule TNI training</h2><p>Books each person's next recommended courses in skill-up order, spread across the week. Courses already booked are skipped.</p></div></div>
+    <form method="post" action="/scheduler/schedule/auto-training" class="form-stack">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <label>Who<select name="scope"><option value="all">Everyone with open gaps</option>{% for e in employees %}<option value="{{ e.id }}">{{ e.id }} · {{ e.name }}</option>{% endfor %}</select></label>
+      <div class="row-2"><label>Start date<input type="date" name="start_date" min="{{ today }}" value="{{ today }}" required></label><label>Time<input type="time" name="start_time" value="10:00"></label></div>
+      <div class="row-2"><label>Courses per person<select name="per_employee">{% for n in [1, 2, 3, 4, 5] %}<option value="{{ n }}" {{ 'selected' if n == 2 }}>{{ n }}</option>{% endfor %}</select></label><label>Cadence<select name="cadence_days"><option value="7">Weekly</option><option value="14">Fortnightly</option></select></label></div>
+      <input type="hidden" name="duration" value="60">
+      <button class="button" type="submit">Auto-schedule</button>
+    </form>
+  </article>
+</div>
+
+{# ---- Question-bank launch gate (unchanged governance: SME approval first) ---- #}
+<div class="section-heading" style="margin-top:28px"><div><h2>Question-bank assessment launch</h2><p>The cohort assessment for blueprint {{ gate.blueprint.id }} can only be scheduled once every required question is SME-approved.</p></div><span class="badge {{ 'success' if gate.ready else 'warning' }}">{{ 'Ready to schedule' if gate.ready else 'Blocked · SME approval required' }}</span></div>
+<section class="card table-card">
+  <div class="table-wrap"><table><thead><tr><th>Competency</th><th>Target</th><th>Required</th><th>Approved</th><th>Remaining</th><th>Gate</th></tr></thead><tbody>{% for row in gate.requirements %}<tr><td><b>{{ row.skill }}</b></td><td>{{ row.target }}</td><td>{{ row.required }}</td><td>{{ row.approved }}</td><td>{{ row.remaining }}</td><td><span class="badge {{ 'success' if row.ready else 'warning' }}">{{ 'Ready' if row.ready else 'Pending' }}</span></td></tr>{% endfor %}</tbody></table></div>
+</section>
+{% if schedule %}
+<section class="card viz-card" style="margin-top:12px"><div class="two-col"><div><b>{{ schedule.name }}</b><p class="muted-copy">{{ schedule.question_count }} approved questions · {{ schedule.duration }} min · Due {{ schedule.due_date }}</p></div><a class="button" href="/scheduler/assignments">Manage assignments →</a></div></section>
+{% else %}
+<section class="card viz-card" style="margin-top:12px">
+  <form method="post" action="/scheduler/schedule/launch" class="schedule-forms" style="margin:0;align-items:end">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label>Due date<input type="date" name="due_date" min="{{ today }}" value="{{ today }}" required></label>
+    <label>Duration (minutes)<input name="duration" type="number" min="5" max="180" value="30"></label>
+    <button class="button" type="submit" {% if not gate.ready %}disabled{% endif %}>{{ 'Schedule cohort assessment' if gate.ready else 'Blocked — approve all questions first' }}</button>
+  </form>
+</section>
+{% endif %}
+{% endblock %}

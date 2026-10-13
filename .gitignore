@@ -1,0 +1,22 @@
+.env
+.env.*
+!.env.example
+db/
+logs/
+*.log
+uvicorn.log
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+tests/_tmp_logs/
+*.sqlite
+*.pem
+*.key
+# v3: benchmark datasets (rebuild with scripts/generate_scale_dataset.py), SQLite WAL files, deploy secrets
+db/scale_*.sqlite*
+db/*.sqlite-wal
+db/*.sqlite-shm
+deploy/.env
+logs/benchmark/

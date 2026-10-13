@@ -1,0 +1,128 @@
+{
+  "dataset": {
+    "employees": 20000,
+    "managers": 2000,
+    "db_mb": 146.5,
+    "bands": {
+      "At risk": 5950,
+      "Exceeding": 3183,
+      "Not enough data": 201,
+      "Off track": 2263,
+      "On track": 8403
+    },
+    "escalations": {
+      "manager": 875,
+      "leader": 0
+    }
+  },
+  "machine": {
+    "python": "3.12.14",
+    "platform": "macOS-26.1-arm64-arm-64bit",
+    "cpu": "arm"
+  },
+  "service": {
+    "full_refresh": {
+      "seconds": 9.0,
+      "employees_per_second": 2231
+    },
+    "one_employee_status": {
+      "runs": 40,
+      "p50_ms": 21.5,
+      "p95_ms": 22.6,
+      "max_ms": 23.3
+    },
+    "manager_team_cards": {
+      "runs": 40,
+      "p50_ms": 3.8,
+      "p95_ms": 4.1,
+      "max_ms": 4.6
+    },
+    "directory_first_page": {
+      "runs": 40,
+      "p50_ms": 1.2,
+      "p95_ms": 1.3,
+      "max_ms": 1.4
+    },
+    "directory_band_filter": {
+      "runs": 40,
+      "p50_ms": 1.1,
+      "p95_ms": 1.2,
+      "max_ms": 1.3
+    },
+    "directory_signal_filter": {
+      "runs": 40,
+      "p50_ms": 6.0,
+      "p95_ms": 6.5,
+      "max_ms": 6.6
+    },
+    "directory_search": {
+      "runs": 40,
+      "p50_ms": 8.6,
+      "p95_ms": 8.9,
+      "max_ms": 9.2
+    },
+    "directory_department": {
+      "runs": 40,
+      "p50_ms": 1.1,
+      "p95_ms": 1.2,
+      "max_ms": 1.2
+    },
+    "directory_last_page": {
+      "runs": 40,
+      "p50_ms": 1.6,
+      "p95_ms": 1.7,
+      "max_ms": 1.7
+    },
+    "leader_overview": {
+      "runs": 13,
+      "p50_ms": 22.4,
+      "p95_ms": 23.0,
+      "max_ms": 23.2
+    },
+    "probation_tracker": {
+      "runs": 13,
+      "p50_ms": 30.7,
+      "p95_ms": 33.0,
+      "max_ms": 34.6
+    }
+  },
+  "http": {
+    "leader_people_directory": {
+      "runs": 20,
+      "p50_ms": 25.3,
+      "p95_ms": 35.8,
+      "max_ms": 62.0
+    },
+    "leader_people_filtered": {
+      "runs": 20,
+      "p50_ms": 30.7,
+      "p95_ms": 31.3,
+      "max_ms": 31.6
+    },
+    "leader_performance_overview": {
+      "runs": 20,
+      "p50_ms": 55.2,
+      "p95_ms": 55.9,
+      "max_ms": 63.2
+    },
+    "leader_360_profile": {
+      "runs": 20,
+      "p50_ms": 48.7,
+      "p95_ms": 51.0,
+      "max_ms": 87.5
+    },
+    "manager_dashboard": {
+      "runs": 20,
+      "p50_ms": 42.7,
+      "p95_ms": 51.5,
+      "max_ms": 52.0
+    },
+    "quick_view_card": {
+      "runs": 20,
+      "p50_ms": 32.5,
+      "p95_ms": 39.7,
+      "max_ms": 44.3
+    }
+  },
+  "measured_on": "2026-10-12"
+}

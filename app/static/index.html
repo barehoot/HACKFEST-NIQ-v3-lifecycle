@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Talent 360i -- Resume Assessment Dashboard</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <h1>Talent 360i</h1>
+      <p class="subtitle">Upload a resume &rarr; role match &rarr; AI-generated, self-checked assessment items</p>
+    </div>
+  </header>
+
+  <main>
+    <section class="upload-card">
+      <form id="upload-form">
+        <label class="dropzone" id="dropzone" for="file-input">
+          <span id="dropzone-label">Drop a resume here or click to browse</span>
+          <span class="dropzone-hint">PDF, DOCX, or TXT</span>
+          <input type="file" id="file-input" name="file" accept=".pdf,.docx,.txt" required>
+        </label>
+
+        <div class="controls">
+          <label for="max-items">Max questions to generate</label>
+          <input type="number" id="max-items" name="max_items" min="1" max="20" value="5">
+          <button type="submit" id="submit-btn">Generate Assessment</button>
+        </div>
+      </form>
+    </section>
+
+    <section id="status-area"></section>
+    <section id="results"></section>
+  </main>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

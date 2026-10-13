@@ -1,0 +1,320 @@
+{% extends 'base.html' %}
+{% import 'people/_macros.html' as pm %}
+{% import 'partials/summary.html' as sm %}
+{% block title %}{{ employee.full_name }} · 360 profile{% endblock %}
+{% block breadcrumb %}{{ current_user.role_label }} / People / {{ employee.full_name }}{% endblock %}
+{% block content %}
+{% set uid = employee.user_id %}
+{% set open_escalations = escalations|rejectattr('status', 'equalto', 'resolved')|list %}
+<a class="text-link" href="/people">← All people</a>
+
+<section class="profile-hero tone-{{ status.tone }}" style="margin-top:10px">
+  <span class="pc-avatar" aria-hidden="true">{{ card.initials }}</span>
+  <div>
+    <p class="eyebrow" style="margin:0">360 PROFILE · {{ uid }}</p>
+    <h1>{{ employee.full_name }}</h1>
+    <p>{{ card.role_name }}{% if card.department and card.department != '—' %} · {{ card.department }}{% endif %}
+      {% if profile and profile.hire_date %} · joined {{ profile.hire_date }}{% endif %}{% if employee.email %} · {{ employee.email }}{% endif %}</p>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">{{ pm.band_chip(status.band, status.tier, status.tone) }}
+      <span class="sig tone-info">Promotion: {{ status.promotion.level }}</span>{{ pm.signals(status.signals, 6) }}</div>
+  </div>
+  {{ pm.score_ring(status.score, status.tone, 'lg') }}
+</section>
+{% if notice %}<div class="flash ok" role="status">{{ notice }}</div>{% endif %}
+{% if error %}<div class="flash err" role="alert"><b>Not saved:</b> {{ error }}</div>{% endif %}
+
+<nav class="profile-tabs" aria-label="Profile sections">
+  <a href="#overview">Overview</a>
+  <a href="#summary">Summary</a>
+  <a href="#evidence">Evidence{% if pending %}<span class="count">{{ pending|length }}</span>{% endif %}</a>
+  <a href="#reviews">Reviews</a>
+  <a href="#development">Development{% if plan.progress.overdue %}<span class="count">{{ plan.progress.overdue }}</span>{% endif %}</a>
+  <a href="#probation">Probation</a>
+  <a href="#skills">Skills & promotion</a>
+  <a href="#career">Career{% if aspirations %}<span class="count">{{ aspirations|length }}</span>{% endif %}</a>
+  <a href="#assessments">Assessments</a>
+  <a href="#escalations">Escalations{% if open_escalations %}<span class="count">{{ open_escalations|length }}</span>{% endif %}</a>
+</nav>
+
+{# ---------------- Overview ---------------- #}
+<section id="overview" class="lc-section lc-grid-2">
+  <article class="lc-card tone-{{ status.tone }}">
+    <h2>Why this status</h2>
+    <p class="lc-sub">Weighted factors, each 0–100. Only factors with data count. Calculated by rules, not AI, and recalculated whenever something changes.</p>
+    {{ pm.factor_bars(status.factors, status.tone, status.missing) }}
+    <p class="lc-sub" style="margin-top:12px"><b>Promotion readiness:</b> {{ status.promotion.level }}{% if status.promotion.reason %} — {{ status.promotion.reason }}{% endif %}</p>
+  </article>
+  <article class="lc-card">
+    <h2>Suggested next steps</h2>
+    <p class="lc-sub">From the status playbook. You decide what to act on.</p>
+    {% if status.recommendations %}<ul class="rec-list">{% for r in status.recommendations %}
+      <li class="{{ r.audience }}"><span>{{ loop.index }}</span><div><b>{{ r.title }}</b><small>{{ r.detail }} · for the {{ r.audience }}</small></div></li>{% endfor %}</ul>
+    {% else %}<div class="lc-empty">Nothing to suggest right now.</div>{% endif %}
+  </article>
+</section>
+
+<section class="lc-section" id="insight">
+  <article class="lc-card">
+    <div class="lc-card-head">
+      <div><h2>AI insight <span class="ai-tag">Agent 6</span></h2>
+        <p>Strengths, risks and actions from the de-identified status signals and evidence titles. No name or ID is sent to the model.</p></div>
+      {% if not read_only %}<form method="post" action="/people/{{ uid }}/insight" data-busy-label="Agent 6 is reading the signals…"><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button class="btn-ai" type="submit">✦ {{ 'Refresh insight' if insight else 'Generate insight' }}</button></form>{% endif %}
+    </div>
+    {% if insight %}{% set i = insight.insight %}
+      <p style="margin:0 0 12px;line-height:1.55">{{ i.summary }}</p>
+      <div class="lc-grid-3">
+        <div><h3 class="eyebrow">Strengths</h3><ul>{% for s in i.strengths %}<li>{{ s }}</li>{% else %}<li class="muted">None listed</li>{% endfor %}</ul></div>
+        <div><h3 class="eyebrow">Risks</h3><ul>{% for s in i.risks %}<li>{{ s }}</li>{% else %}<li class="muted">None listed</li>{% endfor %}</ul></div>
+        <div><h3 class="eyebrow">For the manager</h3><ul>{% for s in i.manager_actions %}<li>{{ s }}</li>{% else %}<li class="muted">None listed</li>{% endfor %}</ul></div>
+      </div>
+      {% if i.escalation and i.escalation.recommended %}<div class="flash err" style="margin-top:10px"><b>Agent 6 suggests a leader review:</b> {{ i.escalation.reason }}</div>{% endif %}
+      <p class="lc-meta" style="margin-top:10px">{{ 'Generated by Agent 6 and verified' if insight.generated_by == 'agent' else 'Template insight (the AI output could not be verified)' }} · {{ insight.created_at[:16]|replace('T', ' ') }} UTC. AI-generated: review before acting.</p>
+    {% else %}<div class="lc-empty">No insight yet. Generate one to get a narrative, strengths, risks and suggested actions.</div>{% endif %}
+  </article>
+</section>
+
+{# ---------------- Evidence ---------------- #}
+{% set sel = request.query_params.get('summary') if request.query_params.get('summary') in summary_types else (summaries.keys()|list|first or 'mid_year') %}
+{{ sm.summary_section(uid, summaries, summary_types, promotion_targets, sel, not read_only, can_edit, csrf_token) }}
+
+<section id="evidence" class="lc-section">
+  <article class="lc-card">
+    <div class="lc-card-head"><div><h2>Evidence</h2>
+      <p>Appreciations, achievements, feedback, 1:1s, escalations and concerns. Facts, dated. Only items shared with {{ employee.full_name }} count towards the status, and they can add their side. Last {{ counts.days }} days: {{ counts.positive }} positive · {{ counts.negative }} negative · {{ counts.one_on_one }} 1:1s.</p></div></div>
+
+    {% if pending %}
+    <h3 class="eyebrow" id="pending">Waiting for your confirmation ({{ pending|length }})</h3>
+    <div style="display:grid;gap:12px;margin-bottom:16px">
+      {% for e in pending %}
+      <div class="pending-card">
+        <div class="ev-top" style="display:flex;gap:8px;flex-wrap:wrap;font-size:11.5px;color:var(--lc-muted)"><span class="ai-tag">{{ 'Agent 7 suggestion' if e.ai and e.ai.generated_by in ('agent', 'rules') else 'Needs tagging' }}</span>
+          <span>{{ e.source_label }}</span><span>· {{ e.occurred_on }}</span>{% if e.origin_sender %}<span>· from {{ e.origin_sender }}</span>{% endif %}
+          {% if e.ai and e.ai.confidence %}<span>· confidence {{ (e.ai.confidence * 100)|round|int }}%</span>{% endif %}</div>
+        {% if e.excerpt %}<div class="excerpt" aria-label="Redacted excerpt">{{ e.excerpt }}</div>{% endif %}
+        {% if can_edit %}
+        <form method="post" action="/people/{{ uid }}/evidence/{{ e.evidence_id }}/confirm" class="lc-form">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <div class="row">
+            <label>Kind <select name="kind">{% for k, label in kinds.items() %}<option value="{{ k }}" {{ 'selected' if e.kind == k }}>{{ label }}</option>{% endfor %}</select></label>
+            <label>Tone <select name="sentiment">{% for s in ('positive', 'neutral', 'negative') %}<option value="{{ s }}" {{ 'selected' if e.sentiment == s }}>{{ s|title }}</option>{% endfor %}</select></label>
+            <label>Impact <select name="weight"><option value="1">Normal</option><option value="2">Notable</option><option value="3">High</option></select></label>
+          </div>
+          <label>Title <input name="title" value="{{ e.title }}" maxlength="140" required></label>
+          <label>Factual summary <textarea name="summary" maxlength="2000" required>{{ e.summary }}</textarea></label>
+          {% if role_skills %}<fieldset class="lc-form" style="border:0;padding:0;margin:0"><legend class="hint">Skills shown</legend>
+            <div style="display:flex;flex-wrap:wrap;gap:6px 14px">{% for s in role_skills %}<label class="check"><input type="checkbox" name="skills" value="{{ s }}" {{ 'checked' if s in e.skills }}> {{ s }}</label>{% endfor %}</div></fieldset>{% endif %}
+          <label class="check"><input type="checkbox" name="shared" value="1" checked> Share with the employee (only shared evidence counts)</label>
+          {% if e.action_items %}<label class="check"><input type="checkbox" name="create_actions" value="1" checked> Turn the {{ e.action_items|length }} agreed action(s) into development actions</label>{% endif %}
+          <div class="actions"><button class="button" type="submit">Confirm and record</button>
+            <button class="btn-danger" type="submit" formaction="/people/{{ uid }}/evidence/{{ e.evidence_id }}/dismiss" formnovalidate>Dismiss</button></div>
+        </form>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if can_edit %}
+    <div class="lc-grid-2" style="margin-bottom:16px">
+      <details class="lc-disclosure"><summary>＋ Log evidence or a 1:1</summary>
+        <form method="post" action="/people/{{ uid }}/evidence" class="lc-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <div class="row">
+            <label>Kind <select name="kind" required>{% for k, label in kinds.items() %}<option value="{{ k }}">{{ label }}</option>{% endfor %}</select></label>
+            <label>Date <input type="date" name="occurred_on" value="{{ today }}" max="{{ today }}"></label>
+            <label>Impact <select name="weight"><option value="1">Normal</option><option value="2">Notable</option><option value="3">High</option></select></label>
+          </div>
+          <label>Title <input name="title" maxlength="140" required placeholder="e.g. Closed the Q3 intercompany reconciliation two days early"></label>
+          <label>What happened <span class="hint">Facts: what, when, the impact. Avoid opinions about the person.</span><textarea name="summary" maxlength="2000" required></textarea></label>
+          {% if role_skills %}<fieldset style="border:0;padding:0;margin:0"><legend class="hint">Skills shown</legend>
+            <div style="display:flex;flex-wrap:wrap;gap:6px 14px">{% for s in role_skills %}<label class="check"><input type="checkbox" name="skills" value="{{ s }}"> {{ s }}</label>{% endfor %}</div></fieldset>{% endif %}
+          <label>Agreed actions (1:1s) <span class="hint">One per line</span><textarea name="action_items" maxlength="1200" placeholder="Shadow the month-end close lead on 14 Nov"></textarea></label>
+          <label class="check"><input type="checkbox" name="create_actions" value="1" checked> Add agreed actions to the development plan</label>
+          <label class="check"><input type="checkbox" name="shared" value="1" checked> Share with the employee</label>
+          <div class="actions"><button class="button" type="submit">Record</button></div>
+        </form>
+      </details>
+      <details class="lc-disclosure"><summary>✉ Tag an Outlook email or Teams chat <span class="ai-tag">Agent 7</span></summary>
+        <form method="post" action="/people/{{ uid }}/evidence/import" enctype="multipart/form-data" class="lc-form" data-busy-label="Agent 7 is classifying…">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <p class="hint">Upload one email saved from Outlook (.eml) or a Teams conversation exported as .txt, or paste the text. Agent 7 suggests how to record it, and nothing is recorded until you confirm. Emails, phone numbers and long numbers are masked; only a short excerpt is kept, never the attachment.</p>
+          <label>File (.eml or .txt, max 1 MB) <input type="file" name="message_file" accept=".eml,.txt"></label>
+          <div class="row"><label>…or paste from <select name="source"><option value="teams">Teams</option><option value="outlook">Outlook</option></select></label></div>
+          <label>Message text <textarea name="pasted" maxlength="20000" placeholder="Paste the message or conversation"></textarea></label>
+          <div class="actions"><button class="btn-ai" type="submit">✦ Tag and classify</button></div>
+        </form>
+      </details>
+    </div>
+    {% endif %}
+
+    {% if evidence %}<ul class="timeline">{% for e in evidence %}{{ pm.evidence_item(e, false, can_edit, uid, csrf_token) }}{% endfor %}</ul>
+    {% else %}<div class="lc-empty">No evidence recorded yet.</div>{% endif %}
+  </article>
+</section>
+
+{# ---------------- Reviews ---------------- #}
+<section id="reviews" class="lc-section lc-grid-2">
+  <article class="lc-card">
+    <h2>Performance reviews</h2>
+    <p class="lc-sub">A shared review feeds the status (25% weight); drafts never count. The employee acknowledges it and can comment.</p>
+    {% for r in reviews %}
+      <div style="border:1px solid var(--lc-line);border-radius:12px;padding:12px 14px;margin-bottom:10px">
+        <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap"><b>{{ r.period }}{% if r.rating %} · {{ r.rating }}/5{% endif %}</b>
+          <span class="sig {{ 'tone-good' if r.status == 'acknowledged' else 'tone-info' if r.status == 'shared' else '' }}">{{ r.status|title }}</span></div>
+        {% if r.summary %}<p style="font-size:12.5px;line-height:1.5;margin:6px 0 0;white-space:pre-line">{{ r.summary }}</p>{% endif %}
+        {% if r.employee_comment %}<div class="reply" style="margin-top:6px;font-size:12px;background:#f6f8fb;padding:8px;border-radius:8px"><b>Employee:</b> {{ r.employee_comment }}</div>{% endif %}
+        <p class="lc-meta" style="margin:6px 0 0">{{ r.manager_name or '' }}{% if r.ai_assisted %} · AI-assisted draft{% endif %}{% if r.acknowledged_at %} · acknowledged {{ r.acknowledged_at[:10] }}{% endif %}</p>
+      </div>
+    {% else %}<div class="lc-empty">No reviews yet.</div>{% endfor %}
+  </article>
+  {% if can_edit %}
+  {% set draft = review_draft or {} %}{% set current = period_review or {} %}
+  <article class="lc-card">
+    <div class="lc-card-head"><div><h2>Review for {{ period }}</h2><p>{{ 'Locked: the employee acknowledged it.' if current.status == 'acknowledged' else 'Write it yourself or start from an AI draft built from the evidence.' }}</p></div>
+      {% if current.status != 'acknowledged' %}<form method="post" action="/people/{{ uid }}/reviews/draft" data-busy-label="Agent 6 is drafting…"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="btn-ai" type="submit">✦ Draft with AI</button></form>{% endif %}</div>
+    {% if review_draft %}<div class="flash ok" role="status"><span class="ai-tag">{{ 'Agent 9' if review_draft.from_summary else 'Agent 6' }}</span> Draft loaded below{% if draft.generated_by != 'agent' %} (template, as the AI draft could not be verified){% endif %}. Edit it so it is yours before sharing. Suggested rating: {{ draft.suggested_rating }}/5.</div>{% endif %}
+    {% if current.status != 'acknowledged' %}
+    <form method="post" action="/people/{{ uid }}/reviews" class="lc-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <input type="hidden" name="ai_assisted" value="{{ '1' if review_draft or current.ai_assisted else '' }}">
+      <div class="row"><label>Period <input name="period" value="{{ period }}" pattern="\d{4}-(H[12]|Q[1-4]|FY)" required title="2026-H1 mid-year, 2026-FY annual, or a quarter"></label>
+        <label>Rating <select name="rating"><option value="">—</option>{% for n, label in [(5, 'Outstanding'), (4, 'Exceeds'), (3, 'Meets'), (2, 'Partly meets'), (1, 'Below')] %}
+          <option value="{{ n }}" {{ 'selected' if (draft.suggested_rating or current.rating) == n }}>{{ n }} · {{ label }}</option>{% endfor %}</select></label></div>
+      <label>Summary <textarea name="summary" maxlength="3000">{{ draft.summary or current.summary or '' }}</textarea></label>
+      <label>Strengths <textarea name="strengths" maxlength="2000">{{ draft.strengths or current.strengths or '' }}</textarea></label>
+      <label>Development areas <textarea name="improvements" maxlength="2000">{{ draft.improvements or current.improvements or '' }}</textarea></label>
+      <div class="actions"><button class="btn-ghost" type="submit">Save draft</button><button class="button" type="submit" name="share" value="1">Share with employee</button></div>
+    </form>
+    {% endif %}
+  </article>
+  {% endif %}
+</section>
+
+{# ---------------- Development plan ---------------- #}
+<section id="development" class="lc-section">
+  <article class="lc-card">
+    <div class="lc-card-head"><div><h2>Development plan</h2>
+      <p>Actionable items with due dates and a success measure. If the plan stalls while the status stays at risk or off track, Talent 360i escalates to you, then to the business leader.</p></div>
+      {% if can_edit %}<form method="post" action="/people/{{ uid }}/plan/generate" data-busy-label="Building the plan…"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="btn-ai" type="submit">✦ Generate from gaps &amp; evidence</button></form>{% endif %}</div>
+    <div class="idp-progress"><div class="idp-bar"><i style="width: {{ plan.progress.pct }}%"></i></div>
+      <small>{{ plan.progress.done }} of {{ plan.progress.total }} done{% if plan.progress.overdue %} · <b style="color:var(--lc-poor)">{{ plan.progress.overdue }} overdue</b>{% endif %}</small></div>
+    {% if plan.actions %}
+    <ul class="action-list">{% for a in plan.actions if a.status != 'cancelled' %}
+      <li class="{{ 'done' if a.status == 'done' }}{{ ' overdue' if a.overdue }}">
+        <span class="action-type">{{ a.type_label }}</span>
+        <div><b>{{ a.title }}</b><small>{% if a.skill %}{{ a.skill }} · {% endif %}due {{ a.due_date or '—' }}{% if a.overdue %} · overdue{% endif %}{% if a.success_measure %} · ✓ {{ a.success_measure }}{% endif %} · {{ a.source|replace('_', ' ') }}</small></div>
+        {% if can_edit %}<form method="post" action="/people/{{ uid }}/actions/{{ a.action_id }}/status"><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <label class="visually-hidden" for="st-{{ a.action_id }}">Status</label>
+          <select id="st-{{ a.action_id }}" name="status">{% for s, label in [('open', 'Open'), ('in_progress', 'In progress'), ('done', 'Done'), ('cancelled', 'Cancel')] %}<option value="{{ s }}" {{ 'selected' if a.status == s }}>{{ label }}</option>{% endfor %}</select>
+          <button class="btn-ghost" type="submit">Save</button></form>
+        {% else %}<span class="sig">{{ a.status|replace('_', ' ')|title }}</span>{% endif %}
+      </li>{% endfor %}</ul>
+    {% else %}<div class="lc-empty">No development actions yet.</div>{% endif %}
+    {% if can_edit %}
+    <details class="lc-disclosure" style="margin-top:12px"><summary>＋ Add an action</summary>
+      <form method="post" action="/people/{{ uid }}/actions" class="lc-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <label>Action <input name="title" maxlength="140" required placeholder="e.g. Lead the vendor-statement reconciliation for one entity"></label>
+        <div class="row"><label>Type <select name="action_type">{% for k, label in action_types.items() %}<option value="{{ k }}">{{ label }}</option>{% endfor %}</select></label>
+          <label>Skill <select name="skill"><option value="">—</option>{% for s in role_skills %}<option>{{ s }}</option>{% endfor %}</select></label>
+          <label>Due <input type="date" name="due_date" min="{{ today }}" required></label></div>
+        <label>Success measure <input name="success_measure" maxlength="240" placeholder="How you'll both know it's done well"></label>
+        <div class="actions"><button class="button" type="submit">Add</button></div>
+      </form></details>
+    {% endif %}
+  </article>
+</section>
+
+{# ---------------- Probation ---------------- #}
+<section id="probation" class="lc-section">
+  <article class="lc-card">
+    <h2>Probation</h2>
+    {% if probation %}
+      <p class="lc-sub">{{ probation.status_label }} · {{ probation.start_date }} → {{ probation.end_date }}{% if probation.extensions %} (extended {{ probation.extensions }}×){% endif %}
+        {% if probation.open %} · {{ [probation.days_left, 0]|max }} days left{% endif %}{% if probation.recommendation_label %} · manager recommends: <b>{{ probation.recommendation_label }}</b>{% endif %}</p>
+      <div class="prob-track" role="img" aria-label="Probation {{ probation.progress_pct }}% elapsed"><i style="width: {{ probation.progress_pct }}%"></i>
+        {% for k in probation.checkpoints %}<span class="prob-mark {{ k.state }}" style="left: {{ k.pos_pct }}%"><small>{{ k.short_label }}</small></span>{% endfor %}
+      </div>
+      <ul class="checkpoint-list">{% for k in probation.checkpoints %}
+        <li class="{{ k.state }}"><div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap"><b>{{ k.label }}</b>
+          <span class="sig {{ 'tone-good' if k.state == 'done' else 'tone-bad' if k.state == 'overdue' else 'tone-warn' if k.state == 'due' else '' }}">{{ k.rating_label or k.state|title }} · due {{ k.due_date }}</span></div>
+          {% if k.note %}<p style="margin:6px 0 0;font-size:12.5px">{{ k.note }}</p><p class="lc-meta" style="margin:4px 0 0">{{ k.completed_by_name or '' }} · {{ (k.completed_at or '')[:10] }}</p>
+          {% elif can_edit and probation.status == 'active' and k.state != 'upcoming' %}
+          <form method="post" action="/people/{{ uid }}/probation/checkpoints/{{ k.checkpoint_id }}" class="lc-form" style="margin-top:8px"><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <div class="row"><label>Rating <select name="rating">{% for key, label in ratings.items() %}<option value="{{ key }}">{{ label }}</option>{% endfor %}</select></label></div>
+            <label>What you observed <span class="hint">The employee reads this.</span><textarea name="note" maxlength="1500" required></textarea></label>
+            <div class="actions"><button class="button" type="submit">Record check-in</button></div></form>{% endif %}
+        </li>{% endfor %}</ul>
+      {% if can_edit and probation.status == 'active' %}
+      <details class="lc-disclosure" style="margin-top:12px" {{ 'open' if probation.decision_due }}><summary>Recommend an outcome to the business leader{% if probation.decision_due %} · due now{% endif %}</summary>
+        {% if probation.can_recommend %}
+        <form method="post" action="/people/{{ uid }}/probation/recommend" class="lc-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <div class="row"><label>Recommendation <select name="recommendation">{% for key, label in recommendations.items() %}<option value="{{ key }}" {{ 'disabled' if key == 'not_confirm' and not probation.can_not_confirm }}>{{ label }}{{ ' (needs 2 documented check-ins)' if key == 'not_confirm' and not probation.can_not_confirm }}</option>{% endfor %}</select></label></div>
+          <label>Rationale <span class="hint">The leader decides on this and the record above. "Do not confirm" needs the facts behind it.</span><textarea name="note" maxlength="2000" required></textarea></label>
+          <div class="actions"><button class="button" type="submit">Send to leader</button></div></form>
+        {% else %}<p class="lc-meta">Complete at least one check-in first.</p>{% endif %}
+      </details>
+      {% endif %}
+      {% if probation.history %}<p class="lc-meta" style="margin-top:10px">History: {% for h in probation.history %}{{ h.event|replace('_', ' ') }} {{ h.at[:10] }}{% if h.note %} (“{{ h.note[:80] }}”){% endif %}{{ ' · ' if not loop.last }}{% endfor %}</p>{% endif %}
+    {% else %}
+      <p class="lc-sub">Not on probation. New joiners are tracked automatically from their hire date; you can also start tracking here.</p>
+      {% if can_edit %}<form method="post" action="/people/{{ uid }}/probation/start" class="lc-form" style="max-width:420px"><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <div class="row"><label>Start date <input type="date" name="start_date" max="{{ today }}" required></label></div>
+        <div class="actions"><button class="btn-ghost" type="submit">Start 6-month probation tracking</button></div></form>{% endif %}
+    {% endif %}
+  </article>
+</section>
+
+{# ---------------- Skills & promotion ---------------- #}
+<section id="skills" class="lc-section lc-grid-2">
+  <article class="lc-card">
+    <h2>Skills vs {{ (tni or {}).role_name or 'role' }}</h2>
+    <p class="lc-sub">Validated levels come from assessments a manager certified; targets come from the live job profile.</p>
+    {% if tni %}<div class="table-wrap"><table><thead><tr><th>Skill</th><th>Current</th><th>Target</th><th>Status</th></tr></thead><tbody>
+      {% for s in tni.skills %}<tr><td><b>{{ s.skill }}</b>{% if s.is_critical %}<small>Critical</small>{% endif %}</td>
+        <td>{{ 'L' ~ s.current if s.current is not none else '—' }}{% if s.validated %} <span class="badge success">✓</span>{% endif %}</td><td>L{{ s.target }}</td>
+        <td><span class="badge {{ 'success' if s.status == 'On Target' else 'warning' if s.status == 'Needs Development' else '' }}">{{ s.status }}</span></td></tr>{% endfor %}
+    </tbody></table></div>{% else %}<div class="lc-empty">No role on file.</div>{% endif %}
+  </article>
+  <article class="lc-card">
+    <h2>Promotion readiness</h2>
+    <p class="lc-sub">{{ status.promotion.level }}{% if status.promotion.reason %} — {{ status.promotion.reason }}{% endif %}</p>
+    {% if readiness and readiness.next %}
+      <p style="font-size:12.5px">Next role: <b>{{ readiness.next.role_name }}</b> ({{ readiness.next.role_grade }}) · skills readiness {{ readiness.pct }}% ({{ readiness.band }})</p>
+      <div class="table-wrap"><table><thead><tr><th>Skill</th><th>Target</th><th>Level</th><th></th></tr></thead><tbody>
+        {% for r in readiness.rows %}<tr><td>{{ r.skill }}{% if r.is_critical %}<small>Critical</small>{% endif %}</td><td>L{{ r.target }}</td><td>{{ 'L' ~ r.level if r.level is not none else '—' }}</td>
+          <td>{% if r.met %}<span class="badge success">✓</span>{% elif r.level is none %}<span class="badge">?</span>{% else %}<span class="badge warning">−{{ r.gap }}</span>{% endif %}</td></tr>{% endfor %}
+      </tbody></table></div>
+      {% if current_user.role in ('manager', 'admin') %}<p style="margin-top:10px"><a class="text-link" href="/manager/promotions/{{ uid }}">Promotion assessment &amp; nomination →</a></p>{% endif %}
+    {% else %}<div class="lc-empty">Top of the ladder, or no role on file.</div>{% endif %}
+  </article>
+</section>
+
+{{ sm.career_section(uid, aspirations, applications, cv_claims, can_edit, csrf_token) }}
+
+{# ---------------- Assessments ---------------- #}
+<section id="assessments" class="lc-section">
+  <article class="lc-card"><h2>Assessments</h2>
+    {% import 'partials/promotion.html' as pr %}{{ pr.history_table(cycles) }}
+  </article>
+</section>
+
+{# ---------------- Escalations ---------------- #}
+<section id="escalations" class="lc-section">
+  <article class="lc-card"><h2>Escalations</h2>
+    <p class="lc-sub">Raised by Talent 360i when the status stays at risk or off track while the development plan is not moving: first to the manager, then to the business leader. They are suggestions for a human review, never an outcome.</p>
+    {% for e in escalations %}
+      <div style="border:1px solid var(--lc-line);border-radius:12px;padding:12px 14px;margin-bottom:10px">
+        <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap"><b>{{ 'Business leader' if e.level == 'leader' else 'Manager' }} · {{ e.reason }}</b>
+          <span class="sig {{ 'tone-good' if e.status == 'resolved' else 'tone-bad' if e.status == 'open' else 'tone-warn' }}">{{ e.status|title }}</span></div>
+        <p style="font-size:12.5px;margin:6px 0 0">{{ e.suggestion }}</p>
+        {% if e.note %}<p class="lc-meta" style="margin:4px 0 0">Note: {{ e.note }}</p>{% endif %}
+        {% if e.status != 'resolved' and not read_only and (e.level == 'manager' or is_leader) %}
+        <form method="post" action="/people/{{ uid }}/escalations/{{ e.escalation_id }}" class="lc-form" style="margin-top:8px"><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <label>Note <input name="note" maxlength="1000" placeholder="What was agreed or done"></label>
+          <div class="actions">{% if e.status == 'open' %}<button class="btn-ghost" type="submit" name="status" value="acknowledged">Acknowledge</button>{% endif %}
+            <button class="button" type="submit" name="status" value="resolved">Mark resolved</button></div></form>
+        {% endif %}
+      </div>
+    {% else %}<div class="lc-empty">No escalations.</div>{% endfor %}
+  </article>
+</section>
+{% endblock %}

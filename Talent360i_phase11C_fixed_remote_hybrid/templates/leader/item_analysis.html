@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% block title %}Item Analysis{% endblock %}
+{% block breadcrumb %}Leader / Item Analysis{% endblock %}
+{% block content %}
+<section class="crextio-hero"><div><p class="eyebrow">ITEM ANALYSIS</p><h1>Assessment quality signals</h1><p>Items are surfaced for review or training interpretation. This view does not automatically alter question status.</p></div></section>
+<section class="neo-card"><div class="card-label-row"><span>Question-level signals</span><span>Advisory</span></div><div class="table-wrap"><table><thead><tr><th>Question</th><th>Skill</th><th>Correct rate</th><th>Discrimination</th><th>Flags</th><th>Signal</th></tr></thead><tbody>{% for x in items %}<tr><td><b>{{ x.id }}</b></td><td>{{ x.skill }}</td><td>{{ x.correct_rate }}%</td><td>{{ x.discrimination }}</td><td>{{ x.flags }}</td><td><span class="status-chip {{ 'danger' if x.signal == 'Training signal' else 'warning' if x.signal != 'Healthy' else 'success' }}">{{ x.signal }}</span></td></tr><tr class="detail-row"><td colspan="6">{{ x.reason }}</td></tr>{% endfor %}</tbody></table></div></section>
+<section class="notice-card"><b>Interpretation:</b> a low success rate can be a training signal rather than proof that the question is defective. Any question-quality decision remains within the SME governance workflow.</section>
+{% endblock %}

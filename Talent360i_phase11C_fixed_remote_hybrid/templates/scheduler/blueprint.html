@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% block title %}Blueprint{% endblock %}
+{% block breadcrumb %}Scheduler / Blueprint{% endblock %}
+{% block content %}
+<section class="crextio-hero"><div><p class="eyebrow">A1 BLUEPRINT AGENT OUTPUT</p><h1>{{ blueprint.role }}</h1><p>{{ blueprint.grade }} · {{ blueprint.framework }} · {{ blueprint.total_items }} items</p></div><a class="yellow-button" href="/scheduler/schedule">Continue to scheduling <span>→</span></a></section>
+<section class="neo-card"><div class="card-label-row"><span>Competency allocation</span><span>{{ blueprint.status }}</span></div><div class="table-wrap" style="margin-top:14px"><table><thead><tr><th>Competency</th><th>Target</th><th>Items</th><th>Framework</th></tr></thead><tbody>{% for item in blueprint.competencies %}<tr><td><b>{{ item.name }}</b></td><td><span class="level">{{ item.target }}</span></td><td>{{ item.items }}</td><td>{{ blueprint.framework }}</td></tr>{% endfor %}</tbody></table></div></section>
+<section class="two-col"><div class="neo-card"><div class="card-label-row"><span>Coverage check</span></div><h2 style="margin-top:18px">Ready for question generation</h2><p class="muted-copy">The blueprint allocates {{ blueprint.total_items }} items across role-targeted competencies. Generation remains subject to self-check and SME approval.</p></div><div class="neo-card"><div class="card-label-row"><span>Framework levels</span></div><div class="hero-tags" style="margin-top:18px">{% for level in framework.levels %}<span>{{ level.code }} · {{ level.label }}</span>{% endfor %}</div></div></section>
+{% endblock %}

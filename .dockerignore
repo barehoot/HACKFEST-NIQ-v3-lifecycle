@@ -1,0 +1,17 @@
+# Secrets and local state never go into the image.
+.env
+**/.env
+.venv
+**/__pycache__
+**/.pytest_cache
+.github
+tests
+logs
+db
+docs
+*.log
+*.docx
+*.pptx
+*.html
+.DS_Store
+**/._*

@@ -1,0 +1,60 @@
+{% extends 'base.html' %}
+{% block title %}HR Workspace{% endblock %}
+{% block breadcrumb %}{{ current_user.role_label }} / Dashboard{% endblock %}
+{% block content %}
+<div class="page-heading"><div><p class="eyebrow">PEOPLE OPERATIONS · ORGANISATION DESIGN</p><h1>HR workspace</h1>
+  <p>Structure, roles and skills for the whole organisation: onboard job profiles and verticals, keep the skill catalogue current, and see where managers' teams need support. Performance records stay with line managers; probation decisions with business leaders.</p></div>
+  <a class="button" href="/org/onboard">＋ Onboard a job profile</a></div>
+{% if notice %}<div class="flash ok" role="status">{{ notice }}</div>{% endif %}
+
+<div class="metric-grid">
+  <article class="metric-card"><p>Employees</p><strong>{{ headcount.employees }}</strong><small>{{ headcount.managers }} line managers{% if headcount.unassigned %} · <span class="orange-text">{{ headcount.unassigned }} without a manager</span>{% endif %}</small></article>
+  <article class="metric-card"><p>Verticals / departments</p><strong>{{ verticals|length }} / {{ departments|length }}</strong><small>{{ pipeline|length }} job profile(s) still onboarding</small></article>
+  <article class="metric-card"><p>Skill catalogue</p><strong>{{ skills }}</strong><small>{% if catalogue_suggestions %}<a class="text-link" href="/org/skills#recommend">{{ catalogue_suggestions }} AI recommendation(s) waiting</a>{% else %}No recommendations waiting{% endif %}</small></article>
+  <article class="metric-card"><p>On probation</p><strong>{{ probation.open }}</strong><small>{{ probation.pending_leader }} awaiting a leader · <span class="{{ 'orange-text' if probation.overdue_checkins }}">{{ probation.overdue_checkins }} overdue check-in(s)</span></small></article>
+</div>
+
+<section class="lc-grid-2 lc-section">
+  <article class="lc-card">
+    <div class="lc-card-head"><div><h2>Teams that need attention</h2><p>Manager teams with the largest share at risk or off track ({{ managers }} team(s) in total).</p></div><a class="btn-ghost" href="/people">All teams →</a></div>
+    {% if clusters %}<ul class="attention-list">
+      {% for c in clusters %}{% set concern = (c.at_risk or 0) + (c.off_track or 0) %}
+      <li class="tone-{{ 'poor' if c.off_track else 'low' if concern else 'good' }}"><a href="/people?manager={{ (c.manager_id or 'none')|urlencode }}"><span class="ico">{{ c.team }}</span>
+        <div><b>{{ c.manager_name }}</b><small>{{ concern }} of {{ c.team }} at risk or off track · avg score {{ c.avg_score|int if c.avg_score is not none else '—' }}{% for f in c.flags %} · {{ f.label }}{% endfor %}</small>
+          <div class="stack-bar slim" aria-hidden="true">{% for n, t in [(c.exceeding, 'best'), (c.on_track, 'good'), (c.at_risk, 'low'), (c.off_track, 'poor'), (c.no_data, 'none')] %}{% if n %}<i class="tone-{{ t }}" style="width: {{ (100 * n / c.team)|round(1) }}%"></i>{% endif %}{% endfor %}</div></div>
+        <span>Open →</span></a></li>
+      {% endfor %}</ul>
+    {% else %}<div class="lc-empty">No employees yet.</div>{% endif %}
+  </article>
+
+  <article class="lc-card">
+    <div class="lc-card-head"><div><h2>Onboarding pipeline</h2><p>New job profiles, and any with fewer than 3 required skills, by readiness.</p></div><a class="btn-ghost" href="/org/onboard">＋ New</a></div>
+    {% if pipeline %}<ul class="pipeline-list">
+      {% for r in pipeline %}<li><a href="/org/onboard/{{ r.role_id }}">
+        <div><b>{{ r.role_name }}</b><small>{{ r.tower }} · {{ r.role_grade }}{% if r.department %} · {{ r.department }}{% endif %} · {{ r.skills }} skill(s){% if r.pending %} · {{ r.pending }} proposal(s){% endif %}</small></div>
+        <span class="mini-meter" role="img" aria-label="Readiness {{ r.readiness.pct }}%"><i style="width: {{ r.readiness.pct }}%"></i></span><b class="num">{{ r.readiness.pct }}%</b></a></li>{% endfor %}
+    </ul>{% else %}<div class="lc-empty">Every job profile is fully set up. <a class="text-link" href="/org/onboard">Onboard a new one</a>.</div>{% endif %}
+    {% if role_suggestions %}<p class="lc-meta" style="margin-top:10px">{{ role_suggestions }} AI-pitched skill(s) are waiting for review on job profiles.</p>{% endif %}
+    {% if pending_changes %}<p class="lc-meta"><a class="text-link" href="/org/job-profiles">{{ pending_changes|length }} manager proposal(s) waiting for approval →</a></p>{% endif %}
+  </article>
+</section>
+
+<section class="lc-section">
+  <div class="section-heading"><div><h2>Organisation status</h2><p>Everyone, by on-track band. Open a band to see the teams.</p></div></div>
+  <div class="band-strip" aria-label="Status bands">
+    {% for b in bands %}<a class="band-tile tone-{{ b.tone }}" href="/people?band={{ b.band|urlencode }}"><span>{{ b.band }}</span><strong>{{ b.count }}</strong><small>{{ b.tier or 'needs evidence' }} · {{ b.pct }}%</small></a>{% endfor %}
+  </div>
+</section>
+
+<section class="lc-grid-2 lc-section">
+  <article class="lc-card"><div class="lc-card-head"><div><h2>Verticals</h2><p>The top of the organisation tree.</p></div><a class="btn-ghost" href="/org/job-profiles#verticals">Manage →</a></div>
+    <div class="table-wrap"><table><thead><tr><th>Vertical</th><th>Departments</th><th>Roles</th><th>Skills</th><th>People</th></tr></thead><tbody>
+      {% for v in verticals %}<tr><td><b>{{ v.code }}</b><small>{{ v.name }}</small></td><td>{{ v.departments }}</td><td>{{ v.roles }}</td><td>{{ v.skills }}</td><td>{{ v.people }}</td></tr>{% endfor %}
+    </tbody></table></div></article>
+  <article class="lc-card"><div class="lc-card-head"><div><h2>Departments</h2><p>A department's leader sees its people.</p></div><a class="btn-ghost" href="/org/people">HR attributes →</a></div>
+    <div class="table-wrap"><table><thead><tr><th>Department</th><th>Leader</th><th>People</th><th>Roles</th></tr></thead><tbody>
+      {% for d in departments %}<tr><td><b>{{ d.name }}</b><small>{{ d.tower or 'Cross-vertical' }}</small></td><td>{{ d.leader_name or '—' }}</td><td>{{ d.people }}</td><td>{{ d.roles }}</td></tr>
+      {% else %}<tr><td colspan="4" class="empty">No departments yet.</td></tr>{% endfor %}
+    </tbody></table></div></article>
+</section>
+{% endblock %}
