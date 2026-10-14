@@ -21,6 +21,8 @@
 </section>
 
 {% if upload_error %}<div class="alert alert-danger" style="margin:16px 0">{{ upload_error }}</div>{% endif %}
+{% if notice %}<div class="flash warn" role="status" style="margin:16px 0">{{ notice }}</div>{% endif %}
+{% if cool_off %}<div class="flash warn" role="status" style="margin:16px 0"><b>Assessment-integrity cool-off.</b> Your last assessment was sent back because its integrity record showed repeated breaches (leaving the page, exiting full screen or a second display). A new attempt opens on {{ cool_off.isoformat() }}.</div>{% endif %}
 
 {% if not cycle %}
 {# upload form below #}

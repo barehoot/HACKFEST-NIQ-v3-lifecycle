@@ -106,7 +106,7 @@ def assessment_factor(cycle: dict | None) -> dict | None:
         parts.append(f"MCQ {round(cycle['mcq_pct'])}%")
     if cycle.get("integrity_risk") == "high":
         base -= 15
-        parts.append("high AI-use risk")
+        parts.append("high assessment-integrity risk")
     parts.append((cycle.get("updated_at") or "")[:10])
     return _factor("assessment", base, " · ".join(p for p in parts if p))
 

@@ -1,5 +1,6 @@
 {% extends 'base.html' %}
 {% import 'partials/evidence.html' as ev %}
+{% import 'partials/integrity.html' as ig %}
 {% block title %}Validation Detail{% endblock %}
 {% block breadcrumb %}Manager / Validation Queue / {{ cycle.employee_name }}{% endblock %}
 {% block content %}
@@ -59,6 +60,7 @@
   </article>
 
   <aside class="detail-sidebar">
+    {{ ig.integrity_card(outcome.proctoring, integrity_events) }}
     <div class="card sidebar-box">
       <p class="eyebrow">GOVERNANCE NOTES</p>
       {% if governance_notes %}
@@ -69,7 +71,7 @@
           {%- if governance_notes.questions_pending %}, {{ governance_notes.questions_pending }} still pending{% endif %}
           {% if governance_notes.reviewer_names %} — by {{ governance_notes.reviewer_names|join(', ') }}{% endif %}</li>
         <li><b>MCQ assessment:</b> {{ 'Submitted' if governance_notes.has_mcq_score else 'Not yet submitted' }}</li>
-        <li><b>Case study &amp; evidence:</b> {{ 'Submitted' if governance_notes.has_evidence_report else 'Submitted · AI report pending' if evidence_pending else 'Not yet submitted' }}</li>
+        <li><b>Case study &amp; evidence:</b> {{ 'Submitted' if governance_notes.has_evidence_report else 'Submitted · AI report pending' if evidence_pending else 'Ended at the integrity strike limit' if outcome.proctoring and outcome.proctoring.auto_submitted else 'Not yet submitted' }}</li>
         <li><b>Cycle opened:</b> {{ governance_notes.created_at }}</li>
         <li><b>Last updated:</b> {{ governance_notes.updated_at }}</li>
         <li><b>Current status:</b> {{ governance_notes.status|replace('_',' ')|title }}</li>
@@ -118,7 +120,7 @@
     <p>Each skill against the level this assessment tested. A skill counts as demonstrated at ≥70% on its MCQ questions with credible simulation evidence and no high AI-use risk.</p></div>
     <span class="badge {{ 'success' if outcome.band == 'strong' else 'danger' }}">{{ 'Strong result' if outcome.band == 'strong' else 'Low result' }}</span></div>
   <div class="recommend {{ outcome.band }}">
-    <b>Recommended: {{ 'Approve and certify the tested levels' if outcome.recommendation == 'approved' else 'Reject and assign skill-gap training' }}</b>
+    <b>Recommended: {{ 'Approve and certify the tested levels' if outcome.recommendation == 'approved' else 'Send back to retake (assessment-integrity breach)' if outcome.recommendation == 'sent_back' else 'Reject and assign skill-gap training' }}</b>
     <small>{{ outcome.reasons|join(' · ') }}</small>
   </div>
   <div class="table-wrap"><table class="outcome-table">
@@ -129,7 +131,7 @@
       <td><input type="checkbox" name="certify" value="{{ r.skill }}" {{ 'checked' if r.demonstrated }} aria-label="Certify L{{ r.tested_level }} in {{ r.skill }}"></td>
       <td><b>{{ r.skill }}</b>{% if r.is_critical %}<small>Critical skill</small>{% endif %}</td>
       <td>L{{ r.tested_level }}<small>{{ r.tested_level_name }}</small></td>
-      <td>{{ r.mcq_detail ~ ' · ' ~ r.mcq_pct|round|int ~ '%' if r.mcq_detail else '—' }}</td>
+      <td>{{ r.mcq_detail ~ ' · ' ~ r.mcq_pct|round|int ~ '%' if r.mcq_detail else '—' }}{% if r.mcq_judged is not none %}<small class="tone-bad">−{{ (r.mcq_pct - r.mcq_judged)|round|int }} integrity → {{ r.mcq_judged|round|int }}%</small>{% endif %}</td>
       <td>{% if r.verdict %}<span class="badge {{ 'success' if r.verdict == 'strong_evidence' else 'warning' if r.verdict == 'partial_evidence' else 'danger' }}">{{ r.verdict|replace('_', ' ')|title }}</span>{% else %}—{% endif %}</td>
       <td>{% if r.integrity in ('medium', 'high') %}<span class="badge {{ 'danger' if r.integrity == 'high' else 'warning' }}">⚠ {{ r.integrity|title }}</span>{% elif r.integrity %}<span class="muted">Low</span>{% else %}—{% endif %}</td>
       <td>{% if r.demonstrated %}<span class="badge success">✓ Demonstrated</span>{% else %}<span class="badge danger">Not yet · shown ~L{{ r.shown_level }}</span>{% endif %}</td>
@@ -138,7 +140,7 @@
     {% else %}<tr><td colspan="8" class="empty">No scored skills on this assessment.</td></tr>{% endfor %}
     </tbody>
   </table></div>
-  <label for="note" class="decision-label"><b>Rationale</b> <small>(required when your decision differs from the recommendation; the leader sees it in calibration)</small></label>
+  <label for="note" class="decision-label"><b>Rationale</b> <small>(required when your decision differs from the recommendation{% if outcome.proctor_risk == 'high' %}; certifying this attempt overrides an integrity breach and needs at least 30 characters{% endif %}; the leader sees it in calibration)</small></label>
   <textarea id="note" name="note" rows="3" maxlength="2000" placeholder="What did you weigh up? e.g. the transcript shows… / the AI-use flag…"></textarea>
   <div class="decision-options">
     <div class="decision-option {{ 'recommended' if outcome.recommendation == 'approved' }}">
@@ -149,7 +151,7 @@
       <button class="button danger-button" name="decision" value="rejected" type="submit">Reject &amp; assign skill-gap training</button>
       <small>Nothing is certified; the levels shown for weak skills are recorded as confirmed gaps. Agent 5 outlines sessions to close them, booked on the calendar, and a re-assessment follows once they're done.</small>
     </div>
-    <div class="decision-option">
+    <div class="decision-option {{ 'recommended' if outcome.recommendation == 'sent_back' }}">
       <button class="button secondary" name="decision" value="sent_back" type="submit">Send back to retake</button>
       <small>No level change or training — e.g. suspected AI use or not enough evidence. A fresh assessment is assigned from the question bank.</small>
     </div>

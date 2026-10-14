@@ -433,6 +433,32 @@ SCHEMA = (
         UNIQUE(user_id, week)
     )
     """,
+    # Assessment integrity (proctoring): what the browser saw during an attempt, one row
+    # per event, and a summary per attempt that the status engine reads without the events.
+    """
+    CREATE TABLE IF NOT EXISTS integrity_events (
+        event_id TEXT PRIMARY KEY,
+        cycle_id TEXT NOT NULL REFERENCES assessment_cycles(cycle_id),
+        user_id TEXT NOT NULL REFERENCES users(user_id),
+        stage TEXT NOT NULL CHECK(stage IN ('mcq', 'simulation')),
+        kind TEXT NOT NULL,
+        severity TEXT NOT NULL CHECK(severity IN ('info', 'minor', 'strike', 'system')),
+        seconds REAL,
+        detail_json TEXT,
+        created_at TEXT NOT NULL
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS integrity_summaries (
+        cycle_id TEXT PRIMARY KEY REFERENCES assessment_cycles(cycle_id),
+        user_id TEXT NOT NULL REFERENCES users(user_id),
+        risk TEXT NOT NULL CHECK(risk IN ('low', 'medium', 'high')),
+        strikes INTEGER NOT NULL DEFAULT 0,
+        locked_stage TEXT,
+        summary_json TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+    )
+    """,
 )
 
 # Indexes for the paths that grow with headcount. Tables that only exist once
@@ -477,6 +503,8 @@ INDEXES = (
     "CREATE INDEX IF NOT EXISTS idx_rsm_role ON role_skill_map(role_id)",
     "CREATE INDEX IF NOT EXISTS idx_events_user ON scheduled_events(user_id, event_date)",
     "CREATE INDEX IF NOT EXISTS idx_certs_user ON skill_certifications(user_id, status)",
+    "CREATE INDEX IF NOT EXISTS idx_integrity_cycle ON integrity_events(cycle_id, created_at)",
+    "CREATE INDEX IF NOT EXISTS idx_integrity_user ON integrity_summaries(user_id, risk)",
 )
 
 _READY: set[str] = set()
@@ -613,15 +641,19 @@ def cycles_for_users(user_ids) -> dict[str, list[dict]]:
     try:
         out: dict[str, list[dict]] = {}
         for r in c.execute(
-            "SELECT cycle_id, user_id, status, manager_decision, matched_role_id, matched_role_name, mcq_score_json, "
-            "evidence_report_json, created_at, updated_at FROM assessment_cycles "
-            "WHERE user_id IN (SELECT value FROM json_each(?)) ORDER BY created_at DESC, rowid DESC",
+            "SELECT a.cycle_id, a.user_id, a.status, a.manager_decision, a.matched_role_id, a.matched_role_name, "
+            "a.mcq_score_json, a.evidence_report_json, a.created_at, a.updated_at, s.risk AS proctor_risk "
+            "FROM assessment_cycles a LEFT JOIN integrity_summaries s ON s.cycle_id = a.cycle_id "
+            "WHERE a.user_id IN (SELECT value FROM json_each(?)) ORDER BY a.created_at DESC, a.rowid DESC",
                 (_ids_param(user_ids),)).fetchall():
             row = dict(r)
             score = json.loads(row.pop("mcq_score_json") or "null") or {}
             evidence = json.loads(row.pop("evidence_report_json") or "null") or {}
+            # The higher of Agent 4's AI-use risk and the proctoring record's risk.
+            risks = [x for x in (evidence.get("integrity_risk"), row.pop("proctor_risk")) if x]
             row.update(mcq_pct=score.get("overall_score_pct"), evidence_pct=evidence.get("evidence_score_pct"),
-                       integrity_risk=evidence.get("integrity_risk"), band=evidence.get("compatibility_band"))
+                       integrity_risk=max(risks, key=["low", "medium", "high"].index) if risks else None,
+                       band=evidence.get("compatibility_band"))
             out.setdefault(row["user_id"], []).append(row)
         return out
     finally:
@@ -1418,8 +1450,9 @@ def band_counts(filters: dict) -> dict[str, int]:
     where, params = _status_where(filters)
     c = conn()
     try:
-        return {r[0]: r[1] for r in c.execute(  # nosec B608 -- fixed fragments, bound values
-            f"SELECT s.band, COUNT(*) FROM employee_status s WHERE {where} GROUP BY s.band", params).fetchall()}
+        return {r[0]: r[1] for r in c.execute(
+            f"SELECT s.band, COUNT(*) FROM employee_status s WHERE {where} GROUP BY s.band",  # nosec B608 -- fixed fragments, bound values
+            params).fetchall()}
     finally:
         c.close()
 
@@ -2471,5 +2504,67 @@ def pulses_for_users(user_ids, since_week: str) -> dict[str, list[dict]]:
                            "ORDER BY week DESC", (_ids_param(user_ids), since_week)).fetchall():
             out.setdefault(r["user_id"], []).append(dict(r))
         return out
+    finally:
+        c.close()
+
+
+# ---------------------------------------------------------------------------
+# Assessment integrity (services/integrity.py owns the policy)
+# ---------------------------------------------------------------------------
+
+def add_integrity_events(rows: list[dict]) -> None:
+    if not rows:
+        return
+    c = conn()
+    try:
+        c.executemany(
+            "INSERT INTO integrity_events (event_id, cycle_id, user_id, stage, kind, severity, seconds, detail_json, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            [(_id("INT"), r["cycle_id"], r["user_id"], r["stage"], r["kind"], r["severity"], r.get("seconds"),
+              json.dumps(r.get("detail") or {}), r.get("created_at") or _now()) for r in rows])
+        c.commit()
+    finally:
+        c.close()
+
+
+def integrity_events(cycle_id: str) -> list[dict]:
+    c = conn()
+    try:
+        rows = c.execute("SELECT * FROM integrity_events WHERE cycle_id = ? ORDER BY created_at, rowid", (cycle_id,)).fetchall()
+        return [{**dict(r), "detail": json.loads(r["detail_json"] or "{}")} for r in rows]
+    finally:
+        c.close()
+
+
+def save_integrity_summary(cycle_id: str, user_id: str, summary: dict) -> None:
+    c = conn()
+    try:
+        c.execute(
+            "INSERT INTO integrity_summaries (cycle_id, user_id, risk, strikes, locked_stage, summary_json, updated_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(cycle_id) DO UPDATE SET risk = excluded.risk, "
+            "strikes = excluded.strikes, locked_stage = excluded.locked_stage, summary_json = excluded.summary_json, "
+            "updated_at = excluded.updated_at",
+            (cycle_id, user_id, summary["risk"], summary["strikes"], summary.get("locked_stage"), json.dumps(summary), _now()))
+        c.commit()
+    finally:
+        c.close()
+
+
+def integrity_summaries(cycle_ids) -> dict[str, dict]:
+    c = conn()
+    try:
+        return {r["cycle_id"]: {**json.loads(r["summary_json"]), "updated_at": r["updated_at"]} for r in c.execute(
+            "SELECT cycle_id, summary_json, updated_at FROM integrity_summaries WHERE cycle_id IN (SELECT value FROM json_each(?))",
+            (_ids_param(cycle_ids),)).fetchall()}
+    finally:
+        c.close()
+
+
+def high_risk_attempts(user_id: str, since: str) -> list[str]:
+    c = conn()
+    try:
+        return [r[0] for r in c.execute(
+            "SELECT cycle_id FROM integrity_summaries WHERE user_id = ? AND risk = 'high' AND updated_at >= ? ORDER BY updated_at",
+            (user_id, since)).fetchall()]
     finally:
         c.close()

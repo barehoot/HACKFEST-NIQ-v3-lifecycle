@@ -2,6 +2,7 @@
 import csv
 import html
 import io
+import json
 import logging
 import os
 import secrets
@@ -11,11 +12,11 @@ from pathlib import Path
 from typing import Annotated
 
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, Request, UploadFile, status
-from fastapi.responses import HTMLResponse, RedirectResponse, Response
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 
-from services import (api_client, auth, coding, db, engagement, insights, lifecycle_store, performance, probation,
+from services import (api_client, auth, coding, db, engagement, insights, integrity, lifecycle_store, performance, probation,
                       progression, question_bank, schedule, security, tni)
 from services.backend_api import BackendAPIError
 from domain import demo_data, frameworks, a4_evidence, governance
@@ -159,10 +160,12 @@ def logout(request: Request, csrf_token: Annotated[str, Form()] = ""):
 def employee_dashboard_page(request: Request, user: dict, status_code: int = 200, upload_error: str | None = None):
     cycle = api_client.get_employee_cycle(employee_scope(user))
     decided = cycle and cycle["status"] in ("manager_approved", "manager_rejected")
+    cool_off = integrity.cool_off_until(employee_scope(user))
     return render(request, "employee/dashboard.html", status_code=status_code, cycle=cycle, upload_error=upload_error,
+                  cool_off=cool_off, notice=request.session.pop("flash", None),
                   certified=db.list_certifications(cycle_id=cycle["cycle_id"]) if decided else [],
                   outline=next(iter(db.list_outlines(cycle_id=cycle["cycle_id"])), None) if decided else None,
-                  can_upload=not cycle or cycle["status"] not in question_bank.ACTIVE_STATUSES,
+                  can_upload=(not cycle or cycle["status"] not in question_bank.ACTIVE_STATUSES) and not cool_off,
                   source_label=question_bank.SOURCE_LABELS.get((cycle or {}).get("match_status"), ""),
                   api_mode=os.getenv("TALENT360_API_MODE", "mock"))
 
@@ -192,6 +195,10 @@ async def employee_upload_resume(
     current = api_client.get_employee_cycle(uid)
     if current and current["status"] in question_bank.ACTIVE_STATUSES:
         return employee_dashboard_page(request, user, status_code=400, upload_error="You already have an assessment in progress.")
+    opens = integrity.cool_off_until(uid)
+    if opens:
+        return employee_dashboard_page(request, user, status_code=400,
+                                       upload_error=f"Your last assessment was sent back for an integrity breach. A new attempt opens on {opens.isoformat()}.")
     if not api_client.backend_pipeline_enabled():
         return employee_dashboard_page(request, user, upload_error="Backend API mode is not enabled. Set TALENT360_API_MODE=remote and TALENT360_BACKEND_URL.")
     try:
@@ -219,8 +226,19 @@ def employee_assessment(request: Request, cycle_id: str, user: dict = Depends(au
     cycle = api_client.get_employee_cycle(employee_scope(user))
     if not cycle or cycle["cycle_id"] != cycle_id or cycle["status"] != "ready_for_assessment":
         raise HTTPException(404, "Assessment not available")
+    if integrity.locked(cycle_id):
+        # The strike limit was reached and the page was closed before it could submit.
+        api_client.submit_employee_assessment(cycle_id, "{}")
+        return _end_attempt_for_integrity(request, cycle_id)
     assessment = api_client.get_employee_takeable_assessment(cycle_id)
-    return render(request, "employee/assessment.html", assessment=assessment)
+    return render(request, "employee/assessment.html", assessment=assessment, proctoring=integrity.client_view(cycle_id))
+
+
+def _end_attempt_for_integrity(request: Request, cycle_id: str):
+    api_client.force_submit_simulation(cycle_id)
+    request.session["flash"] = ("Your assessment was submitted automatically because the integrity strike limit was "
+                                "reached. Your manager will review it with the record of what happened.")
+    return RedirectResponse("/employee/dashboard", status_code=303)
 
 
 @app.post("/employee/assessment/{cycle_id}/submit")
@@ -230,6 +248,8 @@ def employee_submit_assessment(request: Request, cycle_id: str, answers: Annotat
     if not cycle or cycle["cycle_id"] != cycle_id or cycle["status"] != "ready_for_assessment":
         raise HTTPException(404, "Assessment not available")
     api_client.submit_employee_assessment(cycle_id, answers)
+    if integrity.locked(cycle_id):  # submitted at the strike limit: the attempt ends here
+        return _end_attempt_for_integrity(request, cycle_id)
     # The score is never shown to the employee -- straight to the case-study round.
     return RedirectResponse(f"/employee/evidence/{cycle_id}", status_code=303)
 
@@ -251,7 +271,7 @@ def simulation_page(request: Request, cycle_id: str, user: dict, status_code: in
     cycle = api_client.get_employee_cycle(employee_scope(user))
     return render(request, "employee/evidence.html", status_code=status_code, cycle=cycle,
                   sim=api_client.get_simulation(cycle), coding_tasks=coding.challenges_for_cycle(cycle), error=error,
-                  notice=request.session.pop("flash", None))
+                  notice=request.session.pop("flash", None), proctoring=integrity.client_view(cycle_id))
 
 
 @app.get("/employee/evidence/{cycle_id}")
@@ -262,6 +282,8 @@ def employee_case_study(request: Request, cycle_id: str, user: dict = Depends(au
 @app.post("/employee/evidence/{cycle_id}/respond")
 def employee_simulation_respond(request: Request, cycle_id: str, question_id: Annotated[str, Form()] = "", response: Annotated[str, Form()] = "",
                                 paste_chars: Annotated[str, Form()] = "", paste_events: Annotated[str, Form()] = "", active_seconds: Annotated[str, Form()] = "",
+                                typed_chars: Annotated[str, Form()] = "", inserted_chars: Annotated[str, Form()] = "",
+                                corrections: Annotated[str, Form()] = "", long_pauses: Annotated[str, Form()] = "",
                                 csrf_token: Annotated[str, Form()] = "", user: dict = Depends(auth.require_role("employee", "admin"))):
     security.validate_csrf(request, csrf_token)
     _simulation_cycle(user, cycle_id)
@@ -270,7 +292,9 @@ def employee_simulation_respond(request: Request, cycle_id: str, question_id: An
         return simulation_page(request, cycle_id, user, status_code=400, error="Write a response before sending it.")
     # Browser telemetry for the AI-use check; anything missing or malformed is simply not recorded.
     meta = {key: min(int(value), limit) for key, value, limit in (
-        ("paste_chars", paste_chars, 100_000), ("paste_events", paste_events, 1_000), ("active_seconds", active_seconds, 86_400))
+        ("paste_chars", paste_chars, 100_000), ("paste_events", paste_events, 1_000), ("active_seconds", active_seconds, 86_400),
+        ("typed_chars", typed_chars, 100_000), ("inserted_chars", inserted_chars, 100_000),
+        ("corrections", corrections, 100_000), ("long_pauses", long_pauses, 1_000))
         if value.strip().isdigit()}
     result = api_client.respond_to_simulation(cycle_id, security.clean_form_text(question_id, 120), text, meta)
     if not result["ok"]:
@@ -301,6 +325,41 @@ def employee_submit_case_study(request: Request, cycle_id: str, csrf_token: Anno
     governance.record_audit(user["id"], user["role"], "simulation_submitted", f"/employee/evidence/{cycle_id}",
                             details={"evidence_pending": submitted["evidence_pending"]})
     return RedirectResponse("/employee/dashboard", status_code=303)
+
+
+@app.post("/employee/integrity/{cycle_id}")
+async def employee_integrity_events(request: Request, cycle_id: str, user: dict = Depends(auth.require_role("employee", "admin"))):
+    """Proctoring reports from the assessment page (static/js/proctor.js): JSON with the
+    CSRF token in the body, so navigator.sendBeacon can report a closed page too."""
+    body = await request.body()
+    if len(body) > 16_000:
+        raise HTTPException(413, "Too much data")
+    try:
+        payload = json.loads(body or b"{}")
+    except ValueError:
+        raise HTTPException(400, "Malformed report") from None
+    if not isinstance(payload, dict):
+        raise HTTPException(400, "Malformed report")
+    security.validate_csrf(request, str(payload.get("csrf_token") or ""))
+    stage = payload.get("stage")
+    if stage not in integrity.STAGE_STATUS:
+        raise HTTPException(400, "Unknown stage")
+    cycle = api_client.get_employee_cycle(employee_scope(user))
+    if not cycle or cycle["cycle_id"] != cycle_id or cycle["status"] != integrity.STAGE_STATUS[stage]:
+        return JSONResponse({"ignored": True})  # e.g. a closing page's beacon after the attempt moved on
+    events = payload.get("events") if isinstance(payload.get("events"), list) else []
+    result = integrity.record(cycle, stage, events)
+    if result["limit"]:
+        governance.record_audit(user["id"], user["role"], "integrity_strike_limit", f"/employee/integrity/{cycle_id}",
+                                details={"stage": stage, "strikes": result["strikes"]})
+        if stage == "simulation":
+            api_client.force_submit_simulation(cycle_id)
+            result["redirect"] = "/employee/dashboard"
+            request.session["flash"] = ("Your assessment was submitted automatically because the integrity strike limit "
+                                        "was reached. Your manager will review it with the record of what happened.")
+        else:
+            result["action"] = "submit_mcq"
+    return JSONResponse(result)
 
 
 @app.get("/employee/learning")
@@ -419,6 +478,7 @@ def validation_page(request: Request, cycle: dict, status_code: int = 200, error
         awaiting=awaiting, decided=decided, evidence_pending=api_client.evidence_pending(cycle),
         stage=None if awaiting or decided else api_client.assessment_stage(cycle),
         conversations=api_client.simulation_conversations(cycle), notice=request.session.pop("flash", None),
+        integrity_events=integrity.timeline(cycle["cycle_id"]),
     )
 
 
@@ -931,7 +991,8 @@ def leader_calibration_detail(request: Request, cycle_id: str, user: dict = Depe
     row = next((r for r in insights.calibration()["queue"] if r["cycle_id"] == cycle["cycle_id"]), None)
     return render(request, "leader/calibration_detail.html", cycle=cycle, row=row, decider=decider,
                   reviews=api_client.get_calibration_reviews(cycle["cycle_id"]), error=None,
-                  conversations=api_client.simulation_conversations(cycle))
+                  conversations=api_client.simulation_conversations(cycle),
+                  proctoring=integrity.summary(cycle["cycle_id"]), integrity_events=integrity.timeline(cycle["cycle_id"]))
 
 @app.post("/leader/calibration/{cycle_id}/review")
 def leader_calibration_review(request: Request, cycle_id: str, outcome: Annotated[str, Form()] = "", note: Annotated[str, Form()] = "", csrf_token: Annotated[str, Form()] = "", user: dict = Depends(auth.require_role("leader", "admin"))):
@@ -947,6 +1008,7 @@ def leader_calibration_review(request: Request, cycle_id: str, outcome: Annotate
                       decider=db.get_user(cycle.get("manager_id") or "") or {},
                       reviews=api_client.get_calibration_reviews(cycle["cycle_id"]),
                       conversations=api_client.simulation_conversations(cycle),
+                      proctoring=integrity.summary(cycle["cycle_id"]), integrity_events=integrity.timeline(cycle["cycle_id"]),
                       error="Explain what the manager should look at again (at least a sentence).")
     if not db.add_calibration_review(cycle["cycle_id"], user["id"], outcome, note):
         raise HTTPException(400, "This decision is already back with the manager for re-review.")

@@ -607,3 +607,53 @@ td.nowrap, a.nowrap, .table-wrap td a.text-link { white-space: nowrap; }
 /* Grid children default to min-width:auto, so a wide table inside a card pushed the
    card (and the page) past a phone's width; tables scroll inside .table-wrap instead. */
 .two-col > *, .detail-layout > *, .lc-grid-2 > *, .lc-grid-3 > * { min-width: 0; }
+
+/* ---------- proctored assessment ---------- */
+.proctor-bar { position: sticky; top: 0; z-index: 30; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px;
+  margin: -6px 0 14px; padding: 8px 14px; border: 1px solid #dfe6f2; border-radius: 10px; background: #f6f9ff; font-size: 12px; color: #3d4d65; }
+.proctor-bar b { color: var(--lc-ink); }
+.pb-live { width: 8px; height: 8px; border-radius: 50%; background: #d64545; box-shadow: 0 0 0 3px #fbe1e1; flex: none; }
+.pb-item { padding: 2px 8px; border-radius: 999px; background: #fff; border: 1px solid #e1e7ef; white-space: nowrap; }
+.pb-item.bad { color: #a8323f; border-color: #f3c7c7; background: #fff0f1; }
+.pb-note { margin-left: auto; color: var(--lc-muted); }
+.proctor-overlay { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; padding: 16px;
+  background: rgba(15, 26, 46, .82); backdrop-filter: blur(6px); }
+.proctor-overlay[hidden] { display: none; }
+.proctor-panel { width: min(680px, 100%); max-height: calc(100vh - 32px); overflow-y: auto; background: #fff; border-radius: 16px;
+  padding: 26px 28px; box-shadow: 0 30px 80px rgba(0, 0, 0, .35); }
+.proctor-panel h2 { margin: 4px 0 12px; font-size: 22px; color: var(--lc-ink); }
+.proctor-panel p { font-size: 13px; line-height: 1.55; color: #3d4d65; }
+.proctor-panel .eyebrow.tone-bad { color: #a8323f; }
+.proctor-rules { margin: 0 0 14px; padding-left: 18px; display: grid; gap: 8px; font-size: 13px; line-height: 1.5; color: #3d4d65; }
+.proctor-penalties { border: 1px solid #f1dca8; background: #fffaf0; border-radius: 12px; padding: 12px 14px; font-size: 12.5px; color: #5c4510; }
+.proctor-penalties ul { margin: 6px 0 0; padding-left: 18px; display: grid; gap: 5px; line-height: 1.5; }
+.proctor-privacy { margin: 12px 0 0; font-size: 12px !important; color: var(--lc-muted) !important; }
+.proctor-screen { margin: 12px 0 0; padding: 8px 12px; border-radius: 8px; background: #f6f8fb; font-size: 12.5px !important; }
+.proctor-screen.good { background: #eaf7f1; color: #17684a !important; }
+.proctor-screen.bad { background: #fff0f1; color: #a8323f !important; font-weight: 700; }
+.proctor-pledge { display: flex; gap: 10px; align-items: flex-start; margin: 14px 0 0; font-size: 13px; font-weight: 650; color: var(--lc-ink); cursor: pointer; }
+.proctor-pledge input { margin-top: 3px; width: 16px; height: 16px; flex: none; }
+.proctor-actions { display: flex; justify-content: flex-end; margin-top: 18px; }
+.proctor-actions .button[disabled] { opacity: .45; cursor: not-allowed; }
+/* While proctored, the questions and the simulation can't be selected (and so copied). */
+body.proctor-active .question-card h2, body.proctor-active .options, body.proctor-active .sim-brief,
+body.proctor-active .bubble, body.proctor-active .sim-card h2 { -webkit-user-select: none; user-select: none; }
+@media (max-width: 760px) {
+  .pb-note { display: none; }
+  .proctor-panel { padding: 20px 18px; }
+}
+
+/* ---------- integrity record (manager and leader) ---------- */
+.integrity-card .risk-line { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 6px 0 10px; }
+.integrity-card .risk-line b { font-size: 15px; color: var(--lc-ink); }
+.integrity-stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-bottom: 10px; }
+.integrity-stats div { border: 1px solid var(--lc-line); border-radius: 10px; padding: 7px 9px; font-size: 11px; color: var(--lc-muted); }
+.integrity-stats b { display: block; font-size: 15px; color: var(--lc-ink); }
+.integrity-reasons { margin: 0 0 8px; padding-left: 16px; font-size: 12px; line-height: 1.5; color: #3d4d65; }
+.integrity-penalty { font-size: 12px; padding: 8px 10px; border-radius: 8px; background: #fffaf0; border: 1px solid #f1dca8; color: #5c4510; }
+.integrity-timeline { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 6px; max-height: 360px; overflow-y: auto; }
+.integrity-timeline li { display: grid; grid-template-columns: 64px 1fr; gap: 8px; font-size: 11.5px; line-height: 1.4; color: #3d4d65; }
+.integrity-timeline li time { color: var(--lc-muted); font-variant-numeric: tabular-nums; }
+.integrity-timeline li.strike span { color: #a8323f; font-weight: 700; }
+.integrity-timeline li.system span { color: #a8323f; font-weight: 800; }
+.integrity-timeline li.info span { color: var(--lc-muted); }

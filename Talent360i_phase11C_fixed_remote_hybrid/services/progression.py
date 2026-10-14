@@ -34,7 +34,7 @@ from __future__ import annotations
 import re
 from datetime import date
 
-from services import api_client, db, question_bank, schedule, tni
+from services import api_client, db, integrity, question_bank, schedule, tni
 from services.backend_api import BackendAPIError
 
 PASS_PCT = 70           # per-skill MCQ score that counts as demonstrated
@@ -125,6 +125,9 @@ def assessment_outcome(cycle: dict) -> dict:
     levels = db.cycle_question_levels(cycle["cycle_id"])
     plan = tni.employee_tni(cycle["user_id"]) or {"skills": []}
     current = {s["skill"].strip().lower(): s for s in plan["skills"]}
+    proctoring = integrity.summary(cycle["cycle_id"])
+    proctor_risk = proctoring["risk"] if proctoring and proctoring["proctored"] else None
+    mcq_points = integrity.MEDIUM_MCQ_PENALTY if proctor_risk == "medium" else 0
 
     rows = []
     for skill in list(dict.fromkeys([*by_skill, *ev_by_skill])):
@@ -132,10 +135,11 @@ def assessment_outcome(cycle: dict) -> dict:
         tested = int(levels.get(skill) or (mcq or {}).get("target_proficiency_level")
                      or (ev or {}).get("target_proficiency_level") or 3)
         pct = mcq["pct"] if mcq and mcq.get("total") else None
+        judged = max(pct - mcq_points, 0) if pct is not None else None  # medium integrity risk: points off
         verdict = ev.get("verdict") if ev else None
-        integrity = ((ev or {}).get("integrity") or {}).get("risk")
-        demonstrated = ((pct is None or pct >= PASS_PCT) and (verdict is None or verdict in _GOOD_EVIDENCE)
-                        and (pct is not None or verdict is not None) and integrity != "high")
+        ai_use = ((ev or {}).get("integrity") or {}).get("risk")
+        demonstrated = ((judged is None or judged >= PASS_PCT) and (verdict is None or verdict in _GOOD_EVIDENCE)
+                        and (pct is not None or verdict is not None) and ai_use != "high" and proctor_risk != "high")
         mine = current.get(skill.strip().lower())
         previous = mine["current"] if mine else None
         rows.append({
@@ -143,9 +147,9 @@ def assessment_outcome(cycle: dict) -> dict:
             "is_critical": bool((mcq or {}).get("is_critical") or (ev or {}).get("is_critical")),
             "tested_level": tested, "tested_level_name": LEVEL_NAMES[tested] if 0 <= tested <= 5 else "",
             "mcq_pct": pct, "mcq_detail": f"{mcq['correct']}/{mcq['total']}" if mcq and mcq.get("total") else None,
-            "verdict": verdict, "integrity": integrity,
+            "verdict": verdict, "integrity": ai_use, "mcq_judged": judged if mcq_points else None,
             "demonstrated": demonstrated,
-            "shown_level": tested if demonstrated else _shown_level(tested, pct, verdict),
+            "shown_level": tested if demonstrated else _shown_level(tested, judged, verdict),
             "previous_level": previous,
             "validated": bool(mine and mine.get("validated")),
             "missing": (ev or {}).get("missing_element") or "",
@@ -165,11 +169,17 @@ def assessment_outcome(cycle: dict) -> dict:
         reasons.append(f"critical skill(s) not shown: {', '.join(critical_missed)}")
     if evidence.get("integrity_risk") in ("medium", "high"):
         reasons.append(f"possible AI-assisted answers ({evidence['integrity_risk']} risk)")
+    recommendation = "approved" if strong else "rejected"
+    if proctor_risk == "high":
+        recommendation = "sent_back"
+        reasons.insert(0, "assessment-integrity breach: " + "; ".join(proctoring["reasons"]))
+    elif proctor_risk == "medium":
+        reasons.append(f"integrity risk medium: {mcq_points} points off each MCQ skill score")
     return {
         "rows": rows, "demonstrated": len(shown), "total": len(rows), "share_pct": share,
-        "critical_missed": critical_missed, "band": "strong" if strong else "low",
-        "recommendation": "approved" if strong else "rejected", "reasons": reasons,
-        "integrity_risk": evidence.get("integrity_risk"),
+        "critical_missed": critical_missed, "band": "strong" if strong and proctor_risk != "high" else "low",
+        "recommendation": recommendation, "reasons": reasons,
+        "integrity_risk": evidence.get("integrity_risk"), "proctoring": proctoring, "proctor_risk": proctor_risk,
     }
 
 
@@ -217,6 +227,9 @@ def decide(cycle_id: str, decision: str, notes: str, manager_id: str, certify: l
         raise DecisionError("Tick at least one skill to certify, or reject / send back instead.")
     if decision != outcome["recommendation"] and decision != "sent_back" and len(notes.strip()) < 10:
         raise DecisionError("Your decision differs from the recommended outcome, so add a short rationale for the record.")
+    if decision == "approved" and outcome["proctor_risk"] == "high" and len(notes.strip()) < integrity.OVERRIDE_MIN_CHARS:
+        raise DecisionError(f"This attempt has a high-risk integrity record. Certifying it overrides the "
+                            f"recommendation: explain why in at least {integrity.OVERRIDE_MIN_CHARS} characters.")
     if decision != "sent_back" and api_client.evidence_pending(cycle) and len(notes.strip()) < 10:
         raise DecisionError("The AI evidence report isn't ready yet, so add a short rationale from what you read in "
                             "the conversation, or wait for the report.")
@@ -224,7 +237,8 @@ def decide(cycle_id: str, decision: str, notes: str, manager_id: str, certify: l
     if not api_client.decide_manager_cycle(cycle_id, decision, notes, manager_id):
         raise DecisionError("This assessment is not waiting for a decision.")
 
-    result = {"decision": decision, "certified": 0, "gaps": 0, "outline_id": None, "sessions": 0, "outline_ready": False}
+    result = {"decision": decision, "certified": 0, "gaps": 0, "outline_id": None, "sessions": 0, "outline_ready": False,
+              "hr_alerted": outcome["proctor_risk"] == "high" and integrity.report_repeat(cycle, manager_id)}
     record = {"user_id": cycle["user_id"], "role_id": cycle["matched_role_id"], "cycle_id": cycle_id, "certified_by": manager_id}
     if decision == "approved":
         by_skill = {r["skill"]: r for r in outcome["rows"]}

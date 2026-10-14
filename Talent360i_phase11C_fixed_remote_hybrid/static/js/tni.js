@@ -140,13 +140,16 @@
     host.onblur = hide;
   }
 
-  // Simulation integrity telemetry: characters pasted and time from first
-  // interaction to submit, sent with each response for Agent 4's AI-use check.
+  // Simulation integrity telemetry, sent with each response: characters pasted, time
+  // from first interaction to submit (Agent 4's AI-use check), and how the answer
+  // reached the box -- characters typed vs inserted some other way, corrections, and
+  // pauses over 8 s (services/integrity.typing_signals).
   document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('form.sim-form').forEach((form) => {
       const box = form.querySelector('textarea[name="response"]');
       if (!box) return;
       let started = null;
+      let typed = 0, inserted = 0, corrections = 0, pauses = 0, lastInput = null, length = box.value.length;
       const start = () => { if (started === null) started = Date.now(); };
       box.addEventListener('focus', start);
       box.addEventListener('keydown', start);
@@ -156,8 +159,22 @@
         form.elements.paste_chars.value = String(Number(form.elements.paste_chars.value || 0) + text.length);
         form.elements.paste_events.value = String(Number(form.elements.paste_events.value || 0) + 1);
       });
+      box.addEventListener('input', (e) => {
+        start();
+        const now = Date.now();
+        if (lastInput !== null && now - lastInput > 8000) pauses += 1;
+        lastInput = now;
+        const kind = e.inputType || '';
+        const grew = Math.max(box.value.length - length, 0);
+        length = box.value.length;
+        if (kind.startsWith('delete')) corrections += 1;
+        else if (kind === 'insertText' || kind === 'insertCompositionText' || kind === 'insertLineBreak') typed += grew;
+        else inserted += grew;  // paste that got through, drop, autocorrect, an extension
+      });
       form.addEventListener('submit', () => {
         if (started !== null) form.elements.active_seconds.value = String(Math.round((Date.now() - started) / 1000));
+        const set = (name, value) => { if (form.elements[name]) form.elements[name].value = String(value); };
+        set('typed_chars', typed); set('inserted_chars', inserted); set('corrections', corrections); set('long_pauses', pauses);
       });
     });
   });

@@ -1,0 +1,66 @@
+{# Proctored assessment: the rules and pledge before starting, the status bar, and the
+   pause / warning / end panels. static/js/proctor.js drives it and reports to
+   /employee/integrity/<cycle>; services/integrity.py holds the rules it states. #}
+{% macro proctor(cycle_id, stage, view) %}
+<div id="proctor" hidden data-cycle="{{ cycle_id }}" data-stage="{{ stage }}" data-endpoint="/employee/integrity/{{ cycle_id }}"
+     data-csrf="{{ csrf_token }}" data-max="{{ view.max_strikes }}" data-strikes="{{ view.strikes }}"
+     data-accepted="{{ 1 if view.accepted else 0 }}" data-fullscreen="{{ 1 if view.fullscreen else 0 }}" data-grace="{{ view.grace }}"></div>
+
+<div class="proctor-bar" id="proctor-bar" role="status" aria-live="polite">
+  <span class="pb-live" aria-hidden="true"></span><b>Proctored assessment</b>
+  <span class="pb-item" id="pb-strikes">Strikes <b>{{ view.strikes }}</b> of {{ view.max_strikes }}</span>
+  <span class="pb-item" id="pb-screen">Display: checking…</span>
+  {% if view.fullscreen %}<span class="pb-item" id="pb-full">Full screen</span>{% endif %}
+  <span class="pb-note">Leaving this page is recorded.</span>
+</div>
+
+<div class="proctor-overlay" id="proctor-overlay" role="dialog" aria-modal="true" aria-labelledby="proctor-title" hidden>
+  <div class="proctor-panel">
+    <section data-view="rules" hidden>
+      <p class="eyebrow">PROCTORED ASSESSMENT</p>
+      <h2 id="proctor-title">Before you start</h2>
+      <ul class="proctor-rules">
+        <li><b>Stay on this page{{ ', in full screen,' if view.fullscreen }} until you submit.</b> Switching to another tab, window or app{{ ', exiting full screen' if view.fullscreen }}, or closing, reloading or leaving the page is a <b>strike</b>.</li>
+        <li><b>One screen only.</b> Disconnect any extra monitor before you start. A second display is detected and is a strike.</li>
+        <li><b>No copying or pasting.</b> Copy, paste, drag-and-drop, right-click and screenshots are blocked and recorded.</li>
+        <li><b>Your own words: no AI tools, no other people.</b> How each answer is typed (characters, corrections, pauses) is recorded, and answers are checked for AI-written wording.</li>
+      </ul>
+      <div class="proctor-penalties">
+        <b>Strikes and penalties</b>
+        <ul>
+          <li>Every strike shows a warning. At <b>{{ view.max_strikes }} strikes your attempt is submitted automatically</b>, as it stands.</li>
+          <li><b>Medium risk</b> (any strike, 15 s or more away, repeated blocked actions): {{ view.medium_points }} points off each skill's MCQ score in the recommendation.</li>
+          <li><b>High risk</b> (the strike limit, a second display, or a minute away in total): your manager is recommended to send the attempt back, and a retake opens {{ view.cool_off_days }} days after their decision. A second high-risk attempt within 180 days is reported to HR.</li>
+        </ul>
+      </div>
+      <p class="proctor-privacy">Only what happens on this page during the assessment is recorded, with times. There is no camera, microphone or screen recording. Your manager sees the record and makes the decision.</p>
+      <p class="proctor-screen" id="proctor-screen">Checking your displays…</p>
+      <label class="proctor-pledge"><input type="checkbox" id="proctor-pledge"> I will complete this assessment myself, without AI tools, other people or other sources.</label>
+      <div class="proctor-actions"><button class="button" type="button" id="proctor-start" disabled>Start{{ ' in full screen' if view.fullscreen }}</button></div>
+    </section>
+    <section data-view="resume" hidden>
+      <p class="eyebrow">PROCTORED ASSESSMENT</p>
+      <h2>Continue your assessment</h2>
+      <p id="proctor-resume-text">Full screen pauses while the page loads your next step.</p>
+      <div class="proctor-actions"><button class="button" type="button" id="proctor-resume">Continue{{ ' in full screen' if view.fullscreen }}</button></div>
+    </section>
+    <section data-view="paused" hidden>
+      <p class="eyebrow tone-bad">ASSESSMENT PAUSED</p>
+      <h2 id="proctor-paused-title">Return to full screen</h2>
+      <p id="proctor-paused-text">The assessment continues in full screen.</p>
+      <div class="proctor-actions"><button class="button" type="button" id="proctor-paused-go">Return to full screen</button></div>
+    </section>
+    <section data-view="warning" hidden>
+      <p class="eyebrow tone-bad">STRIKE RECORDED</p>
+      <h2 id="proctor-warning-title">You left the assessment</h2>
+      <p id="proctor-warning-text"></p>
+      <div class="proctor-actions"><button class="button" type="button" id="proctor-warning-ok">Return to the assessment</button></div>
+    </section>
+    <section data-view="ended" hidden>
+      <p class="eyebrow tone-bad">ATTEMPT SUBMITTED</p>
+      <h2>The strike limit was reached</h2>
+      <p>Your answers so far are being submitted. Your manager will review them with the record of what happened.</p>
+    </section>
+  </div>
+</div>
+{% endmacro %}

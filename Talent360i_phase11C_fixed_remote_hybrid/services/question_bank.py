@@ -21,7 +21,7 @@ from __future__ import annotations
 
 from datetime import date
 
-from services import db, schedule, tni
+from services import db, integrity, schedule, tni
 
 AUTO_BASELINE_QUESTIONS = 8
 ACTIVE_STATUSES = {"resume_uploaded", "pending_sme_setup", "pending_sme_approval", "ready_for_assessment",
@@ -166,6 +166,9 @@ def baseline_need(user_id: str, plan: dict | None = None) -> dict:
     if last["status"] == "manager_approved":
         return {"needs": False, "reason": "Evaluated for the current role"}
     if last["manager_decision"] == "sent_back":
+        opens = integrity.cool_off_until(user_id)
+        if opens:
+            return {"needs": False, "reason": f"Retake opens on {opens.isoformat()} (assessment-integrity cool-off)"}
         return {**base, "needs": True, "source": "auto_retake", "reason": "Sent back by the manager to retake"}
     done = _remediation_complete(last["cycle_id"])
     if done is False:

@@ -1,0 +1,35 @@
+{# An attempt's proctoring record (services/integrity.py): risk, strikes, time away,
+   the display check, why, the penalty that follows, and every event with its time.
+   Shown to the manager deciding and to the leader calibrating. #}
+{% macro integrity_card(s, events) %}
+<div class="card sidebar-box integrity-card">
+  <p class="eyebrow">ASSESSMENT INTEGRITY</p>
+  {% if not s or not s.proctored %}
+  <p class="muted">Not proctored: this attempt was taken before proctoring started.</p>
+  {% else %}
+  <div class="risk-line"><b>{{ s.risk|title }} risk</b>
+    <span class="badge {{ 'danger' if s.risk == 'high' else 'warning' if s.risk == 'medium' else 'success' }}">{{ 'Integrity breach' if s.risk == 'high' else 'Review the record' if s.risk == 'medium' else 'Nothing of note' }}</span></div>
+  <div class="integrity-stats">
+    <div>Strikes<b>{{ s.strikes }} of {{ s.max_strikes }}</b></div>
+    <div>Time away<b>{{ s.away_seconds }} s</b></div>
+    <div>Displays<b>{{ {'single': 'One', 'extended': 'Two or more', 'unavailable': 'Not checkable'}.get(s.screen, '—') }}</b></div>
+    <div>Blocked actions<b>{{ s.blocked_actions }}</b></div>
+  </div>
+  {% if s.auto_submitted %}<div class="flash err" style="margin:0 0 8px">Submitted automatically at the strike limit.</div>{% endif %}
+  {% if s.reasons %}<ul class="integrity-reasons">{% for r in s.reasons %}<li>{{ r }}</li>{% endfor %}</ul>{% endif %}
+  <p class="integrity-penalty"><b>Penalty:</b> {{ s.penalty }}</p>
+  {% if s.typing and s.typing.measured %}<p class="lc-meta">Typing was measured on {{ s.typing.measured }} simulation answer{{ 's' if s.typing.measured != 1 }}.</p>{% endif %}
+  {% if events %}
+  <details><summary class="text-link">Timeline · {{ events|length }} event{{ 's' if events|length != 1 }} (UTC)</summary>
+    <ol class="integrity-timeline">
+      {% for e in events %}
+      <li class="{{ e.severity }}"><time>{{ e.created_at[11:19] }}</time>
+        <span>{{ e.label }}{% if e.seconds %} · {{ e.seconds|round|int }} s{% endif %}{% if e.severity == 'strike' %} · strike{% endif %}{% if e.detail.same_episode %} (same episode as the last strike){% endif %}
+          <small class="muted">· {{ 'MCQ' if e.stage == 'mcq' else 'simulation' }}</small></span></li>
+      {% endfor %}
+    </ol>
+  </details>
+  {% endif %}
+  {% endif %}
+</div>
+{% endmacro %}

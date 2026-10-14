@@ -1,6 +1,7 @@
 {% extends 'base.html' %}
 {% block title %}Workplace Simulation{% endblock %}
 {% block breadcrumb %}Employee / Workplace Simulation{% endblock %}
+{% from 'partials/proctor.html' import proctor with context %}
 {% macro thread(s, live=False) %}
 <div class="sim-thread">
   <div class="bubble agent"><small>AI assessor · task</small>{{ s.question_text }}</div>
@@ -42,9 +43,10 @@
 {% endif %}
 {% endmacro %}
 {% block content %}
+{% if sim and proctoring %}{{ proctor(cycle.cycle_id, 'simulation', proctoring) }}{% endif %}
 <div class="page-heading"><div><p class="eyebrow">A4 EVIDENCE · WORKPLACE SIMULATION</p><h1>Workplace simulation</h1><p>Work through each scenario as you would on the job. After each response the AI assessor may ask up to three follow-up questions to understand how you would handle it.</p></div></div>
 <div class="notice-card"><b>How this works:</b> the assessor asks follow-ups to find evidence of the skill, not to trick you — be specific about what you would check, do, say and document. Your responses and the assessor's evaluation go to your manager, who makes the decision. Don't include passwords or sensitive personal data.</div>
-<div class="notice-card" style="margin-top:8px"><b>Answer in your own words.</b> Responses are checked for pasted text, implausible typing speed and AI-generated wording. Answers that look AI-written are marked down and flagged to your manager.</div>
+<div class="notice-card" style="margin-top:8px"><b>Answer in your own words.</b> This simulation is proctored: leaving the page, exiting full screen or a second display is a strike, copy and paste are blocked, and how each answer is typed is recorded. Answers that look AI-written are marked down and flagged to your manager.</div>
 
 {% if error %}<div class="flash err" role="alert">{{ error }}</div>{% endif %}
 {% if notice %}<div class="flash ok" role="status">{{ notice }}</div>{% endif %}
@@ -80,6 +82,7 @@
   <form method="post" action="/employee/evidence/{{ cycle.cycle_id }}/respond" class="sim-form" data-busy-label="The assessor is reading your response…">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="question_id" value="{{ s.question_id }}">
     <input type="hidden" name="paste_chars" value="0"><input type="hidden" name="paste_events" value="0"><input type="hidden" name="active_seconds" value="">
+    <input type="hidden" name="typed_chars" value=""><input type="hidden" name="inserted_chars" value=""><input type="hidden" name="corrections" value=""><input type="hidden" name="long_pauses" value="">
     <label for="response"><b>{{ 'Your response to the follow-up' if s.turns and s.turns[-1].role == 'agent' else 'Your response' }}</b></label>
     <textarea id="response" name="response" rows="6" maxlength="3000" required placeholder="What would you do first, what would you check, who would you involve, and why?"></textarea>
     <div class="sim-actions"><small>The assessor may take a few seconds to reply.</small><button class="button" type="submit">Send response</button></div>
@@ -114,3 +117,4 @@
 </div>
 {% endif %}
 {% endblock %}
+{% block page_scripts %}{% if sim and proctoring %}<script src="{{ url_for('static', path='js/proctor.js') }}"></script>{% endif %}{% endblock %}

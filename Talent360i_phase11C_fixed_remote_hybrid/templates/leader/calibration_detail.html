@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% import 'partials/evidence.html' as ev %}
+{% import 'partials/integrity.html' as ig %}
 {% block title %}Calibration · {{ cycle.employee_name }}{% endblock %}
 {% block breadcrumb %}Leader / Manager Calibration / {{ cycle.employee_name }}{% endblock %}
 {% block content %}
@@ -25,6 +26,7 @@
       <p class="muted">{{ '“' ~ cycle.manager_decision_notes ~ '”' if cycle.manager_decision_notes else 'No written rationale recorded.' }}</p>
       <small class="muted">Last updated {{ cycle.updated_at[:10] }}</small>
     </div>
+    {{ ig.integrity_card(proctoring, integrity_events) }}
     <div class="card sidebar-box">
       <p class="eyebrow">CALIBRATION HISTORY</p>
       {% for r in reviews %}

@@ -18,7 +18,7 @@ from agents import a5_development
 from domain import demo_data as phase2_data
 from domain.level_engine import ordinal
 from domain import governance
-from services import schedule, tni
+from services import integrity, schedule, tni
 
 CURRENT_USER = {"id": "U1001", "name": "Demo Employee", "initials": "DE", "role": "P2P Senior Associate", "role_id": "AP_B3_01", "tower": "AP"}
 
@@ -1481,6 +1481,7 @@ SCENARIO_END_REASONS = {
     "no_response": "No response given.",
     "invalid_probe": "The assessor ended this scenario.",
     "assessor_unavailable": "The assessor was unavailable; your answers are saved as they are.",
+    "integrity_limit": "Ended automatically: the assessment-integrity strike limit was reached.",
 }
 
 
@@ -1603,24 +1604,49 @@ def submit_employee_case_study(cycle_id: str):
     sim = get_simulation(cycle)
     if not sim["all_done"]:
         return None
-    try:
-        evidence = _request_evidence(cycle, sim)
-    except BackendAPIError:
-        evidence = None
+    answered = any(s["turns"] for s in sim["scenarios"])
+    evidence = None
+    if answered:  # nothing to evaluate when an attempt ended before any answer
+        try:
+            evidence = _request_evidence(cycle, sim)
+        except BackendAPIError:
+            evidence = None
     fields = {"case_study_answers_json": json.dumps(sim["state"]), "status": "pending_manager_approval"}
     if evidence is not None:
         fields["evidence_report_json"] = json.dumps(evidence)
     workflow_db.update_cycle(cycle_id, **fields)
-    if evidence is None and BACKGROUND_EVIDENCE_RETRY:
+    integrity.refresh(cycle)  # the typing signals are final now
+    pending = answered and evidence is None
+    if pending and BACKGROUND_EVIDENCE_RETRY:
         threading.Thread(target=retry_evidence_report, args=(cycle_id,), daemon=True,
                          name=f"evidence-{cycle_id}").start()
-    return {"evidence_pending": evidence is None}
+    return {"evidence_pending": pending}
+
+
+def force_submit_simulation(cycle_id: str, reason: str = "integrity_limit"):
+    """Ends an attempt at the strike limit: unfinished scenarios close as they stand and
+    everything answered so far goes to the manager. An attempt stopped during the MCQ
+    (no simulation prepared yet) goes straight to the manager with its MCQ score."""
+    cycle = workflow_db.get_cycle(cycle_id)
+    if not cycle or cycle["status"] != "mcq_submitted":
+        return None
+    if not cycle.get("case_study"):
+        workflow_db.update_cycle(cycle_id, status="pending_manager_approval")
+        return {"evidence_pending": False}
+    sim = get_simulation(cycle)
+    for scenario in sim["scenarios"]:
+        if not scenario["done"]:
+            sim["state"]["completed"][scenario["question_id"]] = reason
+    workflow_db.update_cycle(cycle_id, case_study_answers_json=json.dumps(sim["state"]))
+    return submit_employee_case_study(cycle_id)
 
 
 def evidence_pending(cycle: dict | None) -> bool:
     """A submitted simulation still waiting for Agent 4's evidence report."""
+    saved = (cycle or {}).get("case_study_answers") or {}
+    answered = any(saved.get("transcripts", {}).values()) if saved.get("mode") == "simulation" else bool(saved)
     return bool(cycle and cycle.get("status") == "pending_manager_approval" and cycle.get("case_study")
-                and cycle.get("case_study_answers") and not cycle.get("evidence_report"))
+                and answered and not cycle.get("evidence_report"))
 
 
 def retry_evidence_report(cycle_id: str, timeout: float = EVIDENCE_RETRY_TIMEOUT) -> bool:
@@ -1639,9 +1665,13 @@ def retry_evidence_report(cycle_id: str, timeout: float = EVIDENCE_RETRY_TIMEOUT
 
 def retry_pending_evidence(limit: int = 3) -> int:
     """Lifecycle-worker pass: retries the oldest submissions still missing a report."""
-    done = 0
-    for cycle_id in workflow_db.cycles_missing_evidence(limit):
-        done += retry_evidence_report(cycle_id)
+    done = tried = 0
+    for cycle_id in workflow_db.cycles_missing_evidence(50):
+        if tried >= limit:
+            break
+        if evidence_pending(workflow_db.get_cycle(cycle_id)):  # skips attempts ended before any answer
+            tried += 1
+            done += retry_evidence_report(cycle_id)
     return done
 
 

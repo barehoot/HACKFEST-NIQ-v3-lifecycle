@@ -20,8 +20,9 @@
   <td>{{ cycle.matched_role_name }}</td>
   <td>{{ score.overall_score_pct if score else '—' }}%</td>
   <td>{% if cycle.cycle_id in pending_evidence %}<span class="badge blue">Preparing…</span><small>Agent 4 retrying</small>{% else %}{{ evidence.evidence_score_pct if evidence else '—' }}%{% endif %}</td>
-  <td>{% if evidence and evidence.integrity_risk in ('medium', 'high') %}<span class="badge {{ 'danger' if evidence.integrity_risk == 'high' else 'warning' }}">⚠ {{ evidence.integrity_risk|title }}</span>{% elif evidence and evidence.integrity_risk %}<span class="badge success">✓ Low</span>{% else %}—{% endif %}</td>
-  <td><span class="badge {{ 'success' if o.band == 'strong' else 'danger' }}">{{ 'Approve & certify' if o.recommendation == 'approved' else 'Reject · gap training' }}</span><small>{{ o.demonstrated }} of {{ o.total }} skills shown</small></td>
+  <td>{% if evidence and evidence.integrity_risk in ('medium', 'high') %}<span class="badge {{ 'danger' if evidence.integrity_risk == 'high' else 'warning' }}">⚠ {{ evidence.integrity_risk|title }}</span>{% elif evidence and evidence.integrity_risk %}<span class="badge success">✓ Low</span>{% else %}—{% endif %}
+    {% if o.proctor_risk in ('medium', 'high') %}<small><span class="badge {{ 'danger' if o.proctor_risk == 'high' else 'warning' }}">Proctoring: {{ o.proctor_risk|title }}</span></small>{% elif o.proctor_risk %}<small class="muted">Proctoring: clean</small>{% endif %}</td>
+  <td><span class="badge {{ 'success' if o.band == 'strong' else 'danger' }}">{{ 'Approve & certify' if o.recommendation == 'approved' else 'Send back · integrity' if o.recommendation == 'sent_back' else 'Reject · gap training' }}</span><small>{{ o.demonstrated }} of {{ o.total }} skills shown</small></td>
   <td><span class="badge warning">{{ 'Re-review requested by leader' if cycle.manager_decision else 'Pending manager approval' }}</span></td>
   <td><a class="text-link" href="/manager/validations/{{ cycle.cycle_id }}">View →</a></td>
 </tr>

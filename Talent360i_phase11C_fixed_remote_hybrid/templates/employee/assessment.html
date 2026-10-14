@@ -1,9 +1,11 @@
 {% extends 'base.html' %}
 {% block title %}{{ assessment.name }}{% endblock %}
 {% block breadcrumb %}Employee / Assessments / {{ assessment.id }}{% endblock %}
+{% from 'partials/proctor.html' import proctor with context %}
 {% block content %}
+{% if proctoring %}{{ proctor(assessment.id, 'mcq', proctoring) }}{% endif %}
 <div class="assessment-header"><div><p class="eyebrow">ASSESSMENT IN PROGRESS</p><h1>{{ assessment.name }}</h1><p>{{ assessment.role }} <span>•</span> {{ assessment.question_set|length }} questions <span>•</span> {{ assessment.duration }} minutes <span>•</span> MCQ · Scenario · Descriptive</p></div><div class="timer"><small>TIME REMAINING</small><b id="timer" data-seconds="{{ assessment.duration * 60 }}">{{ assessment.duration }}:00</b></div></div>
-<div class="notice-card assessment-runtime-note"><b>How this assessment works:</b> MCQ and scenario items are scored deterministically. Descriptive answers are proposed by A3 against a rubric; borderline proposals are routed to an SME. A3 never sets your proficiency level.</div>
+<div class="notice-card assessment-runtime-note"><b>How this assessment works:</b> MCQ and scenario items are scored deterministically. Descriptive answers are proposed by A3 against a rubric; borderline proposals are routed to an SME. A3 never sets your proficiency level. The assessment is proctored: stay on this page in full screen until you submit.</div>
 <div class="assessment-layout" id="assessment-app" data-total="{{ assessment.question_set|length }}">
 <aside class="question-nav"><p>QUESTION PROGRESS</p><div class="question-count"><b id="answered-count">0</b> / {{ assessment.question_set|length }} answered</div><div class="number-grid">{% for question in assessment.question_set %}<button type="button" class="question-number {{ 'active' if loop.first else '' }}" data-question="{{ loop.index0 }}">{{ loop.index }}</button>{% endfor %}</div><div class="nav-key"><span><i class="key current"></i> Current</span><span><i class="key complete"></i> Answered</span></div></aside>
 <form action="/employee/assessment/{{ assessment.id }}/submit" method="post" id="assessment-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="answers" id="answers-field"><article class="card question-card">
@@ -22,4 +24,4 @@
 </article></form></div>
 <div class="modal-backdrop hidden" id="submit-modal" role="dialog" aria-modal="true"><div class="modal"><span class="modal-icon">✓</span><h2>Submit assessment?</h2><p>You have answered <b id="modal-answered">0</b> of {{ assessment.question_set|length }} questions. Once submitted, your responses cannot be changed.</p><div class="modal-actions"><button class="button secondary" type="button" data-close-modal>Continue assessment</button><button class="button" type="button" id="confirm-submit">Submit now</button></div></div></div>
 {% endblock %}
-{% block page_scripts %}<script src="{{ url_for('static', path='js/assessment.js') }}"></script>{% endblock %}
+{% block page_scripts %}<script src="{{ url_for('static', path='js/assessment.js') }}"></script>{% if proctoring %}<script src="{{ url_for('static', path='js/proctor.js') }}"></script>{% endif %}{% endblock %}
