@@ -47,7 +47,9 @@ document.addEventListener('DOMContentLoaded', () => {
       if (input.value.trim()) answers[input.name] = input.value.trim();
     });
     document.getElementById('answers-field').value = JSON.stringify(answers);
-    document.getElementById('assessment-form').submit();
+    const form = document.getElementById('assessment-form');
+    // requestSubmit fires the submit event, so the proctored page can carry on without a reload.
+    if (form.requestSubmit) form.requestSubmit(); else form.submit();
   });
 
   const timer = document.getElementById('timer');

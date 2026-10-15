@@ -147,14 +147,11 @@
     box.value = value.slice(0, s) + '    ' + value.slice(end);
     box.selectionStart = box.selectionEnd = s + 4;
   });
-  document.addEventListener('DOMContentLoaded', () => {
-    document.querySelectorAll('form.code-form').forEach((form) => {
-      const box = form.querySelector('textarea.code');
-      if (!box || !form.elements.paste_chars) return;
-      box.addEventListener('paste', (e) => {
-        const text = (e.clipboardData || window.clipboardData)?.getData('text') || '';
-        form.elements.paste_chars.value = String(Number(form.elements.paste_chars.value || 0) + text.length);
-      });
-    });
+  document.addEventListener('paste', (e) => {  // delegated: also a coding task swapped in by the proctored page
+    const box = e.target;
+    const form = box instanceof HTMLTextAreaElement && box.classList.contains('code') ? box.closest('form.code-form') : null;
+    if (!form || !form.elements.paste_chars) return;
+    const text = (e.clipboardData || window.clipboardData)?.getData('text') || '';
+    form.elements.paste_chars.value = String(Number(form.elements.paste_chars.value || 0) + text.length);
   });
 })();

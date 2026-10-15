@@ -76,6 +76,10 @@ async def security_headers(request: Request, call_next):
     if not request.url.path.startswith("/static/"):
         # Pages hold personal assessment data -- never cache them in the browser/proxies.
         response.headers["Cache-Control"] = "no-store"
+    else:
+        # Revalidate scripts and styles on every load (a 304 when unchanged): a stale script
+        # after an update could otherwise misreport a proctored assessment.
+        response.headers["Cache-Control"] = "no-cache"
     response.headers["Content-Security-Policy"] = (
         "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; "
         "script-src 'self' 'unsafe-inline'; font-src 'self' data:; connect-src 'self'; "
@@ -161,8 +165,11 @@ def employee_dashboard_page(request: Request, user: dict, status_code: int = 200
     cycle = api_client.get_employee_cycle(employee_scope(user))
     decided = cycle and cycle["status"] in ("manager_approved", "manager_rejected")
     cool_off = integrity.cool_off_until(employee_scope(user))
+    # From the stored record, not a one-time message: the proctored page may have read that already.
+    auto_submitted = bool(cycle and cycle["status"] == "pending_manager_approval"
+                          and (integrity.summary(cycle["cycle_id"]) or {}).get("auto_submitted"))
     return render(request, "employee/dashboard.html", status_code=status_code, cycle=cycle, upload_error=upload_error,
-                  cool_off=cool_off, notice=request.session.pop("flash", None),
+                  cool_off=cool_off, notice=request.session.pop("flash", None), auto_submitted=auto_submitted,
                   certified=db.list_certifications(cycle_id=cycle["cycle_id"]) if decided else [],
                   outline=next(iter(db.list_outlines(cycle_id=cycle["cycle_id"])), None) if decided else None,
                   can_upload=(not cycle or cycle["status"] not in question_bank.ACTIVE_STATUSES) and not cool_off,
@@ -231,7 +238,7 @@ def employee_assessment(request: Request, cycle_id: str, user: dict = Depends(au
         api_client.submit_employee_assessment(cycle_id, "{}")
         return _end_attempt_for_integrity(request, cycle_id)
     assessment = api_client.get_employee_takeable_assessment(cycle_id)
-    return render(request, "employee/assessment.html", assessment=assessment, proctoring=integrity.client_view(cycle_id))
+    return render(request, "employee/assessment.html", assessment=assessment, proctoring=integrity.client_view(cycle_id, "mcq"))
 
 
 def _end_attempt_for_integrity(request: Request, cycle_id: str):
@@ -271,7 +278,7 @@ def simulation_page(request: Request, cycle_id: str, user: dict, status_code: in
     cycle = api_client.get_employee_cycle(employee_scope(user))
     return render(request, "employee/evidence.html", status_code=status_code, cycle=cycle,
                   sim=api_client.get_simulation(cycle), coding_tasks=coding.challenges_for_cycle(cycle), error=error,
-                  notice=request.session.pop("flash", None), proctoring=integrity.client_view(cycle_id))
+                  notice=request.session.pop("flash", None), proctoring=integrity.client_view(cycle_id, "simulation"))
 
 
 @app.get("/employee/evidence/{cycle_id}")

@@ -657,3 +657,7 @@ body.proctor-active .bubble, body.proctor-active .sim-card h2 { -webkit-user-sel
 .integrity-timeline li.strike span { color: #a8323f; font-weight: 700; }
 .integrity-timeline li.system span { color: #a8323f; font-weight: 800; }
 .integrity-timeline li.info span { color: var(--lc-muted); }
+.proctor-spinner { width: 28px; height: 28px; margin: 14px 0 2px; border-radius: 50%; border: 3px solid #e1e7ef;
+  border-top-color: var(--lc-good, #2867e3); animation: proctor-spin .9s linear infinite; }
+@keyframes proctor-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .proctor-spinner { animation: none; } }

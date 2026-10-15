@@ -44,6 +44,7 @@
 {% endmacro %}
 {% block content %}
 {% if sim and proctoring %}{{ proctor(cycle.cycle_id, 'simulation', proctoring) }}{% endif %}
+<div id="proctor-content">
 <div class="page-heading"><div><p class="eyebrow">A4 EVIDENCE · WORKPLACE SIMULATION</p><h1>Workplace simulation</h1><p>Work through each scenario as you would on the job. After each response the AI assessor may ask up to three follow-up questions to understand how you would handle it.</p></div></div>
 <div class="notice-card"><b>How this works:</b> the assessor asks follow-ups to find evidence of the skill, not to trick you — be specific about what you would check, do, say and document. Your responses and the assessor's evaluation go to your manager, who makes the decision. Don't include passwords or sensitive personal data.</div>
 <div class="notice-card" style="margin-top:8px"><b>Answer in your own words.</b> This simulation is proctored: leaving the page, exiting full screen or a second display is a strike, copy and paste are blocked, and how each answer is typed is recorded. Answers that look AI-written are marked down and flagged to your manager.</div>
@@ -116,5 +117,6 @@
   <form method="post" action="/employee/evidence/{{ cycle.cycle_id }}/submit"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="button" type="submit">Continue →</button></form>
 </div>
 {% endif %}
+</div>
 {% endblock %}
 {% block page_scripts %}{% if sim and proctoring %}<script src="{{ url_for('static', path='js/proctor.js') }}"></script>{% endif %}{% endblock %}

@@ -47,6 +47,11 @@ def test_both_assessment_pages_are_proctored(portal, svc):
     page = portal.login("proc.pages").get(f"/employee/assessment/{cycle_id}").text
     assert 'id="proctor-overlay"' in page and "js/proctor.js" in page and f"/employee/integrity/{cycle_id}" in page
     assert "I will complete this assessment myself" in page and "3 strikes your attempt is submitted automatically" in page
+    # Each step's content sits in #proctor-content, which the page swaps without a reload (full screen survives).
+    assert page.count('id="proctor-content"') == 1 and 'id="assessment-form" data-busy-label=' in page
+    sim_cycle = _cycle(portal, _employee(portal, "proc.pages.sim"), "mcq_submitted", case_study_json=SIM_CASE)
+    sim_page = portal.login("proc.pages.sim").get(f"/employee/evidence/{sim_cycle}").text
+    assert sim_page.count('id="proctor-content"') == 1 and 'data-stage="simulation"' in sim_page
 
 
 def test_what_counts_as_a_strike(portal, svc):
@@ -209,3 +214,27 @@ def test_the_manager_sees_the_integrity_record(portal, svc):
     assert "ASSESSMENT INTEGRITY" in page and "Integrity breach" in page and "Second display detected" in page
     assert "Send back to retake (assessment-integrity breach)" in page and "at least 30 characters" in page
     assert "Proctoring: High" in mgr.get("/manager/validations").text
+
+
+def test_moving_on_to_the_simulation_is_not_a_strike(portal, svc):
+    uid = _employee(portal, "proc.stage")
+    cycle_id = _cycle(portal, uid, "ready_for_assessment")
+    client = portal.login("proc.stage")
+    token, _ = _token(client, f"/employee/assessment/{cycle_id}")
+    _report(client, cycle_id, token, "mcq", {"kind": "rules_accepted", "detail": {"extended": False}})
+    portal.db.update_cycle(cycle_id, status="mcq_submitted", case_study_json=json.dumps(SIM_CASE))  # the MCQ is in
+
+    assert 'data-stage-seen="0"' in client.get(f"/employee/evidence/{cycle_id}").text
+    # Opened from the dashboard: even a client that reports it as a reopen gets no strike.
+    first = _report(client, cycle_id, token, "simulation", {"kind": "reopened"}, {"kind": "page_loaded"})
+    assert first["strikes"] == 0 and first["warning"] is None
+    assert 'data-stage-seen="1"' in client.get(f"/employee/evidence/{cycle_id}").text
+    # Reopening the simulation once it's under way is a return, and a strike.
+    assert _report(client, cycle_id, token, "simulation", {"kind": "reopened"}, {"kind": "page_loaded"})["strikes"] == 1
+    assert ("stage_started", "info") in [(e["kind"], e["severity"]) for e in svc.integrity.timeline(cycle_id)]
+
+
+def test_scripts_are_revalidated_after_an_update(portal):
+    client = portal.login("mgr.one")
+    assert client.get("/static/js/proctor.js").headers["cache-control"] == "no-cache"  # never a stale proctoring script
+    assert client.get("/manager/validations").headers["cache-control"] == "no-store"

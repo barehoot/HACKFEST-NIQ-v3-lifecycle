@@ -143,41 +143,52 @@
   // Simulation integrity telemetry, sent with each response: characters pasted, time
   // from first interaction to submit (Agent 4's AI-use check), and how the answer
   // reached the box -- characters typed vs inserted some other way, corrections, and
-  // pauses over 8 s (services/integrity.typing_signals).
-  document.addEventListener('DOMContentLoaded', () => {
-    document.querySelectorAll('form.sim-form').forEach((form) => {
-      const box = form.querySelector('textarea[name="response"]');
-      if (!box) return;
-      let started = null;
-      let typed = 0, inserted = 0, corrections = 0, pauses = 0, lastInput = null, length = box.value.length;
-      const start = () => { if (started === null) started = Date.now(); };
-      box.addEventListener('focus', start);
-      box.addEventListener('keydown', start);
-      box.addEventListener('paste', (e) => {
-        start();
-        const text = (e.clipboardData || window.clipboardData)?.getData('text') || '';
-        form.elements.paste_chars.value = String(Number(form.elements.paste_chars.value || 0) + text.length);
-        form.elements.paste_events.value = String(Number(form.elements.paste_events.value || 0) + 1);
-      });
-      box.addEventListener('input', (e) => {
-        start();
-        const now = Date.now();
-        if (lastInput !== null && now - lastInput > 8000) pauses += 1;
-        lastInput = now;
-        const kind = e.inputType || '';
-        const grew = Math.max(box.value.length - length, 0);
-        length = box.value.length;
-        if (kind.startsWith('delete')) corrections += 1;
-        else if (kind === 'insertText' || kind === 'insertCompositionText' || kind === 'insertLineBreak') typed += grew;
-        else inserted += grew;  // paste that got through, drop, autocorrect, an extension
-      });
-      form.addEventListener('submit', () => {
-        if (started !== null) form.elements.active_seconds.value = String(Math.round((Date.now() - started) / 1000));
-        const set = (name, value) => { if (form.elements[name]) form.elements[name].value = String(value); };
-        set('typed_chars', typed); set('inserted_chars', inserted); set('corrections', corrections); set('long_pauses', pauses);
-      });
-    });
+  // pauses over 8 s (services/integrity.typing_signals). Delegated from the document,
+  // so it also covers a simulation step the proctored page swaps in without a reload.
+  const simStats = new WeakMap();
+  const simBox = (el) => (el instanceof HTMLTextAreaElement && el.name === 'response' && el.closest('form.sim-form') ? el : null);
+  const statsFor = (box) => {
+    if (!simStats.has(box)) simStats.set(box, { started: null, typed: 0, inserted: 0, corrections: 0, pauses: 0, last: null, length: box.value.length });
+    const st = simStats.get(box);
+    if (st.started === null) st.started = Date.now();
+    return st;
+  };
+  document.addEventListener('focusin', (e) => { const box = simBox(e.target); if (box) statsFor(box); });
+  document.addEventListener('keydown', (e) => { const box = simBox(e.target); if (box) statsFor(box); });
+  document.addEventListener('paste', (e) => {  // only reached when a paste isn't blocked (an unproctored page)
+    const box = simBox(e.target);
+    if (!box) return;
+    statsFor(box);
+    const form = box.form;
+    const text = (e.clipboardData || window.clipboardData)?.getData('text') || '';
+    form.elements.paste_chars.value = String(Number(form.elements.paste_chars.value || 0) + text.length);
+    form.elements.paste_events.value = String(Number(form.elements.paste_events.value || 0) + 1);
   });
+  document.addEventListener('input', (e) => {
+    const box = simBox(e.target);
+    if (!box) return;
+    const st = statsFor(box);
+    const now = Date.now();
+    if (st.last !== null && now - st.last > 8000) st.pauses += 1;
+    st.last = now;
+    const kind = e.inputType || '';
+    const grew = Math.max(box.value.length - st.length, 0);
+    st.length = box.value.length;
+    if (kind.startsWith('delete')) st.corrections += 1;
+    else if (kind === 'insertText' || kind === 'insertCompositionText' || kind === 'insertLineBreak') st.typed += grew;
+    else st.inserted += grew;  // a paste that got through, drop, autocorrect, an extension
+  });
+  // Capture phase: the counts are in the form before any other submit handler reads it.
+  document.addEventListener('submit', (e) => {
+    const form = e.target;
+    if (!(form instanceof HTMLFormElement) || !form.classList.contains('sim-form')) return;
+    const box = form.querySelector('textarea[name="response"]');
+    const st = box && simStats.get(box);
+    if (!st) return;
+    const set = (name, value) => { if (form.elements[name]) form.elements[name].value = String(value); };
+    if (st.started !== null) set('active_seconds', Math.round((Date.now() - st.started) / 1000));
+    set('typed_chars', st.typed); set('inserted_chars', st.inserted); set('corrections', st.corrections); set('long_pauses', st.pauses);
+  }, true);
 
   // Slow AI steps (simulation probes, evidence report): show progress and block double-submits.
   document.addEventListener('submit', (e) => {

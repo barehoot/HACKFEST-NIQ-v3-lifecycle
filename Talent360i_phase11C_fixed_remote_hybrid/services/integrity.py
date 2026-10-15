@@ -50,7 +50,7 @@ MAX_EVENTS_PER_REQUEST = 20
 
 STAGE_STATUS = {"mcq": "ready_for_assessment", "simulation": "mcq_submitted"}
 KINDS = {  # what the browser may report -> severity before the rules below
-    "rules_accepted": "info", "page_loaded": "info", "screen_check_unavailable": "info",
+    "rules_accepted": "info", "page_loaded": "info", "screen_check_unavailable": "info", "stage_started": "info",
     "focus_lost": "strike", "fullscreen_exit": "strike", "left_page": "strike", "reopened": "strike",
     "multi_screen": "strike",
     "paste_blocked": "minor", "copy_blocked": "minor", "drop_blocked": "minor", "context_menu": "minor",
@@ -59,6 +59,7 @@ KINDS = {  # what the browser may report -> severity before the rules below
 BLOCKED = ("paste_blocked", "copy_blocked", "drop_blocked", "context_menu", "screenshot_key", "devtools_shortcut")
 LABELS = {
     "rules_accepted": "Accepted the rules and started", "page_loaded": "Opened the assessment page",
+    "stage_started": "Moved on to the next part of the assessment",
     "screen_check_unavailable": "Browser can't check for a second display",
     "focus_lost": "Left the assessment (another tab, window or app)", "fullscreen_exit": "Exited full screen",
     "left_page": "Closed, reloaded or navigated away from the page", "reopened": "Reopened the page after leaving it",
@@ -218,10 +219,12 @@ def timeline(cycle_id: str) -> list[dict]:
     return [{**e, "label": LABELS.get(e["kind"], e["kind"].replace("_", " "))} for e in store.integrity_events(cycle_id)]
 
 
-def client_view(cycle_id: str) -> dict:
-    """What the proctored page needs to start: was the pledge taken, strikes so far, the limit."""
+def client_view(cycle_id: str, stage: str | None = None) -> dict:
+    """What the proctored page needs to start: was the pledge taken, strikes so far, the limit,
+    and whether this part of the attempt was already under way (so opening it again is a return)."""
     s = summary(cycle_id) or summarize([])
-    return {"accepted": s["accepted"], "strikes": s["strikes"], "max_strikes": MAX_STRIKES,
+    seen = bool(stage) and any(e["stage"] == stage for e in store.integrity_events(cycle_id))
+    return {"accepted": s["accepted"], "strikes": s["strikes"], "max_strikes": MAX_STRIKES, "stage_seen": seen,
             "locked": bool(s["locked_stage"]), "fullscreen": REQUIRE_FULLSCREEN, "grace": GRACE_SECONDS,
             "cool_off_days": COOL_OFF_DAYS, "penalties": PENALTIES, "medium_points": MEDIUM_MCQ_PENALTY}
 
@@ -257,6 +260,8 @@ def record(cycle: dict, stage: str, raw_events: list) -> dict:
             severity = "minor"  # a notification or a misclick, not leaving
         if kind == "reopened" and _left_since_last_load(existing + rows):
             severity = "info"  # closing the page was the strike
+        if kind == "reopened" and not any(e["stage"] == stage for e in existing + rows):
+            severity, kind = "info", "stage_started"  # first visit to this part (MCQ done -> simulation): not a return
         if severity == "strike" and last_strike and (now - _parse(last_strike)).total_seconds() < EPISODE_SECONDS:
             severity, detail = "minor", {**detail, "same_episode": True}
         if budget <= 0 and severity != "strike":

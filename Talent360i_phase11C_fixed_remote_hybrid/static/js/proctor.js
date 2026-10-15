@@ -3,6 +3,10 @@
 // blocks copy and paste, notices every exit and second display, and reports each to
 // /employee/integrity/<cycle>. The server (services/integrity.py) decides what is a
 // strike, answers with the count, and ends the attempt at the limit.
+//
+// Browsers leave full screen on every page load, so inside a proctored attempt the
+// forms submit in the background and the next step (MCQ -> simulation, each answer)
+// is swapped into #proctor-content: full screen, monitoring and strikes carry on.
 (() => {
   const root = document.getElementById('proctor');
   if (!root) return;
@@ -11,6 +15,7 @@
   const cfg = {
     cycle: root.dataset.cycle, stage: root.dataset.stage, endpoint: root.dataset.endpoint, csrf: root.dataset.csrf,
     max: Number(root.dataset.max), strikes: Number(root.dataset.strikes), accepted: root.dataset.accepted === '1',
+    stageSeen: root.dataset.stageSeen === '1',
     fullscreen: root.dataset.fullscreen === '1' && canFullscreen,
   };
   const navKey = `t360-proctor-nav:${cfg.cycle}`;
@@ -19,6 +24,7 @@
   let active = false;      // monitoring (after the pledge, while the page is in use)
   let leaving = false;     // our own submit is navigating away
   let ended = false;
+  let loading = false;     // a step is loading in the background: waiting isn't a strike
   let away = null;         // {start, via, fullscreenLost} while focus is elsewhere
   let extended = null;     // last display check: true / false / null (unsupported)
   let pausedFor = null;    // 'fullscreen' | 'screen'
@@ -112,6 +118,8 @@
       if (cfg.fullscreen && !isFull()) { pause('fullscreen'); return; }
       pausedFor = null;
       show(null);
+      // After a reload the warning (a reopen is a strike) can stand in for the Continue panel.
+      if (!active && !loading && !ended && cfg.accepted) startMonitoring(false);
       updateBar();
     });
   }
@@ -169,20 +177,88 @@
     active = false;
     try { sessionStorage.setItem(navKey, '1'); } catch (e) { /* storage blocked: a reload then reads as a reopen */ }
   }
-  document.addEventListener('submit', (e) => {
-    const form = e.target;
-    if (form instanceof HTMLFormElement && /^\/employee\/(assessment|evidence)\//.test(new URL(form.action, window.location.href).pathname)) {
+  const proctoredForm = (form) => form instanceof HTMLFormElement
+    && /^\/employee\/(assessment|evidence)\//.test(new URL(form.action, window.location.href).pathname);
+  // form.submit() fires no submit event: route those through the same path, so a script that
+  // submits directly (or an old cached copy of one) can't read as leaving the page.
+  const nativeSubmit = HTMLFormElement.prototype.submit;
+  HTMLFormElement.prototype.submit = function submit() {
+    if (proctoredForm(this)) {
+      if (active) { softSubmit(this); return undefined; }
       markLeaving();
     }
-  }, true);
-  $('confirm-submit')?.addEventListener('click', markLeaving, true);  // the MCQ submits with form.submit(): no submit event
+    return nativeSubmit.call(this);
+  };
+  // Bubble phase: the typing counts and the busy label have been applied to the form by now.
+  document.addEventListener('submit', (e) => {
+    const form = e.target;
+    if (!proctoredForm(form) || e.defaultPrevented) return;
+    if (!active) { markLeaving(); return; }  // not started, or ended: an ordinary page load
+    e.preventDefault();
+    softSubmit(form);
+  });
+  if (!HTMLFormElement.prototype.requestSubmit) $('confirm-submit')?.addEventListener('click', markLeaving, true);
   window.addEventListener('beforeunload', (e) => {
-    if (active && !leaving && !ended) { e.preventDefault(); e.returnValue = ''; }
+    if ((active || loading) && !leaving && !ended) { e.preventDefault(); e.returnValue = ''; }
   });
   window.addEventListener('pagehide', () => {
-    if (!active || leaving || ended) return;
+    if (!(active || loading) || leaving || ended) return;
     send([{ kind: 'left_page', seconds: away ? (Date.now() - away.start) / 1000 : 0 }], true);
   });
+
+  // ---- the next step without a page load ----------------------------------------
+  function beginLoading(label) {
+    loading = true;
+    active = false;
+    away = null;
+    $('proctor-loading-title').textContent = label;
+    show('loading');
+  }
+  function endLoading() {
+    loading = false;
+    active = true;
+    if (document.hidden || !document.hasFocus()) startAway(document.hidden ? 'tab' : 'window');  // away when it arrived
+    checkScreen();
+    if (pausedFor === 'screen') return;
+    if (cfg.fullscreen && !isFull()) pause('fullscreen'); else show(null);
+  }
+  function softSubmit(form) {
+    beginLoading(form.dataset.busyLabel || 'Loading the next step…');
+    fetch(form.action, { method: 'POST', body: new FormData(form), credentials: 'same-origin', redirect: 'follow' })
+      .then((r) => r.text().then((html) => arrive(r, html)))
+      .catch(() => { markLeaving(); form.submit(); });  // the network failed: an ordinary submit instead
+  }
+  function arrive(response, html) {
+    const next = new DOMParser().parseFromString(html, 'text/html');
+    const content = next.getElementById('proctor-content');
+    const nextRoot = next.getElementById('proctor');
+    const here = $('proctor-content');
+    if (content && nextRoot && here) {
+      here.replaceWith(document.adoptNode(content));
+      const newStage = nextRoot.dataset.stage !== cfg.stage;
+      ['stage', 'endpoint', 'csrf', 'strikes'].forEach((k) => { root.dataset[k] = nextRoot.dataset[k]; });
+      Object.assign(cfg, { stage: nextRoot.dataset.stage, endpoint: nextRoot.dataset.endpoint, csrf: nextRoot.dataset.csrf,
+                           strikes: Number(nextRoot.dataset.strikes), stageSeen: true });
+      if (newStage) send([{ kind: 'stage_started' }]);  // so a later reopen of this part reads as a return
+      document.title = next.title;
+      const crumb = next.querySelector('.finance-breadcrumb strong');
+      const crumbHere = document.querySelector('.finance-breadcrumb strong');
+      if (crumb && crumbHere) crumbHere.textContent = crumb.textContent;
+      window.history.replaceState(null, '', response.url);
+      document.dispatchEvent(new CustomEvent('t360:content-swapped'));
+      updateBar();
+      endLoading();
+      const latest = $('latest');
+      if (latest) latest.scrollIntoView({ block: 'center' }); else window.scrollTo(0, 0);
+      return;
+    }
+    // The attempt is over (the dashboard) or something went wrong: leave proctoring.
+    markLeaving();
+    if (response.ok) { window.location.assign(response.url); return; }
+    document.open();
+    document.write(html);
+    document.close();
+  }
 
   // ---- copying, pasting and shortcuts ----------------------------------------------
   const block = (kind) => (e) => {
@@ -243,6 +319,7 @@
       enterFull().then(() => {
         if (cfg.fullscreen && !isFull()) { line.textContent = 'The browser blocked full screen. Allow it and press Start again.'; return; }
         show(null);
+        cfg.accepted = true;
         startMonitoring(true);
       });
     });
@@ -256,10 +333,15 @@
   if (!cfg.accepted) {
     setupRules();
   } else {
-    send([...(internal ? [] : [{ kind: 'reopened' }]), { kind: 'page_loaded' }]);
-    $('proctor-resume-text').textContent = internal
-      ? 'Full screen pauses while the page loads your next step. Continue when you’re ready.'
-      : 'You left this page earlier; that was recorded. Continue when you’re ready.';
+    // A part of the attempt opened for the first time (the simulation after the MCQ, even from
+    // the dashboard) is a start, not a return; reopening a part already under way is a return.
+    const returning = cfg.stageSeen && !internal;
+    send([...(cfg.stageSeen ? (internal ? [] : [{ kind: 'reopened' }]) : [{ kind: 'stage_started' }]), { kind: 'page_loaded' }]);
+    $('proctor-resume-text').textContent = returning
+      ? 'You left this page earlier; that was recorded. Continue when you’re ready.'
+      : cfg.stage === 'simulation' && !cfg.stageSeen
+        ? 'Next: the workplace simulation. The same rules apply. Continue when you’re ready.'
+        : 'Full screen pauses while the page loads your next step. Continue when you’re ready.';
     $('proctor-resume').addEventListener('click', () => {
       enterFull().then(() => {
         if (cfg.fullscreen && !isFull()) return;

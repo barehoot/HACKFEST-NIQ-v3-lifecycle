@@ -4,7 +4,7 @@
 {% macro proctor(cycle_id, stage, view) %}
 <div id="proctor" hidden data-cycle="{{ cycle_id }}" data-stage="{{ stage }}" data-endpoint="/employee/integrity/{{ cycle_id }}"
      data-csrf="{{ csrf_token }}" data-max="{{ view.max_strikes }}" data-strikes="{{ view.strikes }}"
-     data-accepted="{{ 1 if view.accepted else 0 }}" data-fullscreen="{{ 1 if view.fullscreen else 0 }}" data-grace="{{ view.grace }}"></div>
+     data-accepted="{{ 1 if view.accepted else 0 }}" data-stage-seen="{{ 1 if view.stage_seen else 0 }}" data-fullscreen="{{ 1 if view.fullscreen else 0 }}" data-grace="{{ view.grace }}"></div>
 
 <div class="proctor-bar" id="proctor-bar" role="status" aria-live="polite">
   <span class="pb-live" aria-hidden="true"></span><b>Proctored assessment</b>
@@ -55,6 +55,12 @@
       <h2 id="proctor-warning-title">You left the assessment</h2>
       <p id="proctor-warning-text"></p>
       <div class="proctor-actions"><button class="button" type="button" id="proctor-warning-ok">Return to the assessment</button></div>
+    </section>
+    <section data-view="loading" hidden>
+      <p class="eyebrow">PROCTORED ASSESSMENT</p>
+      <h2 id="proctor-loading-title">Loading the next step…</h2>
+      <p>Full screen stays on. Waiting here isn't a strike; it can take up to a minute while the AI prepares the next step.</p>
+      <div class="proctor-spinner" aria-hidden="true"></div>
     </section>
     <section data-view="ended" hidden>
       <p class="eyebrow tone-bad">ATTEMPT SUBMITTED</p>
